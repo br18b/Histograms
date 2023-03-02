@@ -1,0 +1,17 @@
+INC = -I$(HOME)/yt-conda/include
+LIBINC = -L$(HOME)/yt-conda/lib
+#CC = g++ -Ofast
+CC = mpicxx -std=c++17 -pthread
+OBJFILES = main.o node.o read_binary.o string_pad.o statistics.o parallel.o
+TARGET = main
+
+all: $(TARGET)
+
+%.o : %.cpp
+	$(CC) $< -c $(INC)
+
+$(TARGET): $(OBJFILES)
+	$(CC) -o $(TARGET) $(OBJFILES) $(LIBINC) -lhdf5 -lhdf5_cpp
+
+clean:
+	rm -f $(OBJFILES) $(TARGET)
