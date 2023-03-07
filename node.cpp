@@ -26,6 +26,65 @@ template <typename T> int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
+void Parameters::initialize() {
+    frames.resize(0);
+	transform_1D.resize(0); name_transform_1D.resize(0);
+	transform_2D.resize(0); name_transform_2D.resize(0);
+	weight.resize(0); postfix_weight.resize(0);
+	merge_fraction_1D.resize(0);
+	merge_fraction_2D.resize(0);
+    initial_depth_1D.resize(0);
+    initial_depth_2D.resize(0);
+}
+
+void Parameters::setFieldnames(std::string fname_x, std::string fname_y) {
+    fieldname_x = fname_x;
+    fieldname_y = fname_y;
+}
+
+void Parameters::addFrame(int f) {
+    frames.push_back(f);
+}
+
+void Parameters::setFrames(int start, int end) {
+    frames.resize(0);
+    if (start <= end) {
+        for (int f = start; f <= end; f++) {
+            frames.push_back(f);
+        }
+    }
+}
+
+void Parameters::add1Dtransform(std::function<double(double, double)> function, std::string name, int initial_depth) {
+    transform_1D.push_back(function);
+    name_transform_1D.push_back(name);
+    initial_depth_1D.push_back(initial_depth);
+}
+
+void Parameters::add2Dtransform(std::pair<std::function<double(double, double)>, std::function<double(double, double)>> function, std::string name, int initial_depth) {
+    transform_2D.push_back(function);
+    name_transform_2D.push_back(name);
+    initial_depth_2D.push_back(initial_depth);
+}
+
+void Parameters::add2Dtransform(std::function<double(double, double)> fun_x, std::function<double(double, double)> fun_y, std::string name, int initial_depth) {
+    transform_2D.push_back(std::make_pair(fun_x, fun_y));
+    name_transform_2D.push_back(name);
+    initial_depth_2D.push_back(initial_depth);
+}
+
+void Parameters::addWeight(std::function<double(double, double)> function, std::string postfix) {
+    weight.push_back(function);
+    postfix_weight.push_back(postfix);
+}
+
+void Parameters::setMergeFractions(std::vector<std::string> fractions1D, std::vector<std::string> fractions2D) {
+    merge_fraction_1D.resize(0);
+    merge_fraction_2D.resize(0);
+    for (auto &f: fractions1D) merge_fraction_1D.push_back(f);
+    for (auto &f: fractions2D) merge_fraction_2D.push_back(f);
+}
+
 bool Node::inside(const double& x, const double& y) {
     return (x >= xmin) && (x < xmax) && (y >= ymin) && (y < ymax);
 }
@@ -2210,11 +2269,15 @@ void BinaryTree::load_points(const std::vector<double> &x, const std::vector<dou
 }
 
 void BinaryTree::load_points(const std::vector<double> &x, const std::vector<double> &y, std::function<double(double, double)> &fun, std::function<double(double, double)> &fun_wt) {
-    for (int i = 0; i < x.size(); i++) {
-        double val = fun(x[i], y[i]);
-        std::cout << val << std::endl;
-        add_point(val, fun_wt(x[i], y[i]));
-    }
+    for (int i = 0; i < x.size(); i++) add_point(fun(x[i], y[i]), fun_wt(x[i], y[i]));
+}
+
+void BinaryTree::load_points(double x[], double y[], const std::function<double(double, double)> &fun, const std::function<double(double, double)> &fun_wt, int size) {
+    for (int i = 0; i < size; i++) add_point(fun(x[i], y[i]), fun_wt(x[i], y[i]));
+}
+
+void Quadtree::load_points(double x[], double y[], const std::function<double(double, double)> &fun_x, const std::function<double(double, double)> &fun_y, const std::function<double(double, double)> &fun_wt, int size) {
+    for (int i = 0; i < size; i++) add_point(fun_x(x[i], y[i]), fun_y(x[i], y[i]), fun_wt(x[i], y[i]));
 }
 
 void BinaryTree::load_points(std::string path, std::string prefix, std::vector<std::string> filename_x) {
@@ -4400,7 +4463,7 @@ void load_points(std::string path, std::string prefix, std::vector<std::string> 
     }
     std::cout << backspace;
 }
-
+/*
 void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D) {
     std::vector<double> x, y;
     int N = filename_x.size();
@@ -4481,7 +4544,7 @@ void load_points(std::string path, std::vector<int> frames, std::string fieldnam
             }
         }
     }
-}
+}*/
 
 void initialize(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::string scale_X, std::string scale_Y, Quadtree& Q, BinaryTree& X, BinaryTree& Y) {
     std::string backspace = "";
@@ -4790,7 +4853,7 @@ void initialize(std::string path, std::string prefix, std::vector<std::string> f
         }
     }
 }
-
+/*
 void initialize(std::string path_to_sim, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<std::string> scale_1D, std::vector<std::pair<std::string, std::string>> scale_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D) {
     std::vector<double> x, y;
     std::vector<double> XMIN, XMAX, Z_XMIN, Z_XMAX, Z_YMIN, Z_YMAX;
@@ -4876,3 +4939,4 @@ void initialize(std::string path_to_sim, std::vector<int> frames, std::string fi
         }
     }
 }
+*/

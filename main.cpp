@@ -11,9 +11,10 @@
 #include "load.h"
 #include "string_pad.h"
 #include "statistics.h"
+#include "read_binary.h"
 
 //using namespace H5;
-
+/*
 void extract_fields(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<std::string> scale_1D, std::vector<std::pair<std::string, std::string>> scale_2D, std::vector<int> subdiv_1D, std::vector<int> subdiv_2D, std::vector<std::string> merge_1D, std::vector<std::string> merge_2D, std::vector<std::string> outputname_x, std::vector<std::string> outputname_z, std::vector<std::string> outputpostfix_weight) {
 	std::vector<BinaryTree> data_1D;
 	std::vector<Quadtree> data_2D;
@@ -59,7 +60,7 @@ void extract_fields(std::string path_to_sim, std::string path_output, std::vecto
 		}
 	}
 }
-
+*/
 std::function<double(double, double, double)> magnitude = [](double x, double y, double z) {
 	return std::sqrt(x * x + y * y + z * z);
 };
@@ -111,6 +112,10 @@ std::function<double(double, double)> fun_logrho_from_rho = [](double x, double 
 };
 
 std::function<double(double, double)> fun_logrho_from_s = [](double x, double y) {
+	return x;
+};
+
+std::function<double(double, double)> fun_rho_from_rho = [](double x, double y) {
 	return x;
 };
 
@@ -211,6 +216,7 @@ int main(int argc, char *argv[]) {
 	std::string filename = "DD0052/data0052.cpu0000";
 	std::string ifile = path + filename;
 	std::vector<std::function<double(double, double)>> stats = { density, logrho, rho_logrho, kin_logrho, logrho2, rho_logrho2, kin_logrho2, v2V, v2M, v2E, kinetic, thermal, fun_sv2, fun_s2v2, fun_sv4, fun_s2v4 };
+	Parameters params;
 	int index_rho = 0;
 	int index_s = 1;
 	int index_sM = 2;
@@ -222,7 +228,7 @@ int main(int argc, char *argv[]) {
 	int index_v2M = 8;
 	int index_v2E = 9;
 	int index_kin = 10;
-
+	
 	//auto foo = read_from_hdf5("/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0_mach12.4/DD0052/data0052.cpu0000", "Grid00000001", "density");
 	//return 0;
 /*
@@ -235,5 +241,24 @@ int main(int argc, char *argv[]) {
 */
 	//extract_stats_parallel(path, path_out, { 52 }, { density }, { }, { "rho" }, { }, Nthreads, rank);
 	//extract_fields(path, path_out, { 52 }, "rho", "v", { weight_volume, weight_mass_from_rho, weight_kinetic_from_rho }, { fun_absv, fun_logrho_from_rho, fun_symlog_Helmholtz_from_rho, fun_log_kinetic_from_rho }, { {fun_logrho_from_rho, fun_absv}, {fun_symlog_Helmholtz_from_rho, fun_log_kinetic_from_rho} }, { "lin" ,"lin" ,"lin" ,"lin" }, { {"lin" ,"lin"} ,{"lin" ,"lin"} }, { 10,10,10,10 }, { 10,10 }, { "1e-4", "1e-3", "1e-2" }, { "1e-7", "1e-6", "1e-5", "1e-4", "1e-3", "1e-2" }, { "absv","logrho","Helmholtz","kinetic" }, { "logrho_absv","Helmholtz_kinetic" }, { "V", "M", "E" });
-	extract_1D_histogram_parallel(path, path_out, { 52 }, "rho", "absv", weight_volume, fun_logrho_from_rho, 10, { "1e-4", "1e-3", "1e-2"}, "logrho_" + std::to_string(Nthreads), "V", rank, Nthreads);
+	//extract_1D_histogram_parallel(path, path_out, { 52 }, "rho", "absv", weight_volume, fun_logrho_from_rho, 10, { "1e-4", "1e-3", "1e-2"}, "logrho_" + std::to_string(Nthreads), "V", rank, Nthreads);
+
+	params.initialize();
+	params.addFrame(52);
+	params.setFieldnames("rho", "absv");
+	
+	params.add1Dtransform(fun_logrho_from_rho, "logrho_" + std::to_string(Nthreads), 10);
+	params.add1Dtransform(fun_absv, "absv_" + std::to_string(Nthreads), 10);
+	params.add1Dtransform(fun_shiftlog_Helmholtz_from_rho, "Helmholtz_" + std::to_string(Nthreads), 10);
+	params.add1Dtransform(fun_log_kinetic_from_rho, "kinetic_" + std::to_string(Nthreads), 10);
+	
+	params.add2Dtransform(fun_logrho_from_rho, fun_absv, "logrho_absv_" + std::to_string(Nthreads), 10);
+	params.add2Dtransform(fun_shiftlog_Helmholtz_from_rho, fun_log_kinetic_from_rho, "Helmholtz_kinetic_" + std::to_string(Nthreads), 10);
+	
+	params.setMergeFractions({"1e-4", "1e-3", "1e-2"},{"1e-7", "1e-6", "1e-5", "1e-4"});
+
+	extract_histograms(path, path_out, params, rank, Nthreads);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	return 0;
 }

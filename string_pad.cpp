@@ -1,6 +1,6 @@
 #include "string_pad.h"
 
-std::string string_pad_left(std::string str, std::string padding, int total_length) {
+std::string string_pad_left(const std::string &str, std::string padding, int total_length) {
         int n_str = static_cast<int>(str.length());
         int n_padding = static_cast<int>(padding.length());
         std::string res = str;
@@ -12,7 +12,7 @@ std::string string_pad_left(std::string str, std::string padding, int total_leng
         return res;
 }
 
-std::string string_pad_left(std::string str, int padding, int total_length) {
+std::string string_pad_left(const std::string &str, int padding, int total_length) {
         return string_pad_left(str, std::to_string(padding), total_length);
 }
 
@@ -24,8 +24,7 @@ std::string string_pad_left(int str, int padding, int total_length) {
         return string_pad_left(std::to_string(str), std::to_string(padding), total_length);
 }
 
-std::string cpu_filename(std::string path_to_sim, int frame, int cpu_number) {
-	while (path_to_sim.back() == '/') path_to_sim.pop_back();
+std::string cpu_filename(const std::string &path_to_sim, int frame, int cpu_number) {
 	return path_to_sim + "/DD" + string_pad_left(frame, 0, 4) + "/data" + string_pad_left(frame, 0, 4) + ".cpu" + string_pad_left(cpu_number, 0, 4);
 }
 

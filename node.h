@@ -17,12 +17,38 @@
 #include <sstream>
 #include <cmath>
 #include "read_binary.h"
+#include "string_pad.h"
 
 double symlog(double x, double threshold);
 double symlogInv(double x, double threshold);
 double natural_log(double x);
 double dec_log(double x);
 double lin(double x);
+
+class Parameters {
+public:
+	std::vector<int> frames;
+	std::string fieldname_x, fieldname_y;
+	std::vector<std::function<double(double, double)>> transform_1D;
+	std::vector<std::string> name_transform_1D;
+	std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> transform_2D;
+	std::vector<std::string> name_transform_2D;
+	std::vector<std::function<double(double, double)>> weight;
+	std::vector<std::string> postfix_weight;
+	std::vector<std::string> merge_fraction_1D;
+	std::vector<std::string> merge_fraction_2D;
+	std::vector<int> initial_depth_1D;
+	std::vector<int> initial_depth_2D;
+	void initialize();
+	void addFrame(int f);
+	void setFrames(int start, int end);
+	void setFieldnames(std::string fname_x, std::string fname_y);
+	void add1Dtransform(std::function<double(double, double)> function, std::string name, int initial_depth);
+	void add2Dtransform(std::pair<std::function<double(double, double)>, std::function<double(double, double)>> function, std::string name, int initial_depth);
+	void add2Dtransform(std::function<double(double, double)> fun_x, std::function<double(double, double)> fun_y, std::string name, int initial_depth);
+	void addWeight(std::function<double(double, double)> function, std::string postfix);
+	void setMergeFractions(std::vector<std::string> fractions1D, std::vector<std::string> fractions2D);
+};
 
 class Node {
 public:
@@ -172,6 +198,7 @@ public:
 	void load_points(const std::vector<double> &pts, const std::vector<double> &wt);
 	void load_points(const std::vector<double> &x, const std::vector<double> &y, std::function<double(double, double)> &fun);
 	void load_points(const const std::vector<double> &x, const const std::vector<double> &y, std::function<double(double, double)> &fun, std::function<double(double, double)> &fun_wt);
+	void load_points(double x[], double y[], const std::function<double(double, double)> &fun, const std::function<double(double, double)> &fun_wt, int size);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_weight);
 
@@ -247,6 +274,7 @@ public:
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_weight);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_z, std::function<double(double, double, double)> fun1, std::function<double(double, double, double)> fun2, std::function<bool(double, double, double)> cond);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_z, std::function<double(double, double, double)> fun1, std::function<double(double, double, double)> fun2, std::function<bool(double, double, double, double, double)> cond, double cond_param1, double cond_param2);
+	void load_points(double x[], double y[], const std::function<double(double, double)> &fun_x, const std::function<double(double, double)> &fun_y, const std::function<double(double, double)> &fun_wt, int size);
 
 	double count_total(int i);
 	double count_total();
@@ -316,14 +344,14 @@ void load_points(std::string path, std::string prefix, std::vector<std::string> 
 void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_weight1, std::vector<std::string> filename_weight2, std::vector<std::string> filename_weight3, Quadtree& Q1, Quadtree& Q2, Quadtree& Q3, BinaryTree& X1, BinaryTree& X2, BinaryTree& X3, BinaryTree& Y1, BinaryTree& Y2, BinaryTree& Y3);
 void load_points(std::vector<Quadtree>& Q, std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_z, std::function<double(double, double, double)> fun1, std::function<double(double, double, double)> fun2, std::function<bool(double, double, double, double, double)> cond, std::vector<std::pair<double, double>> x);
 
-void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D);
-void load_points(std::string path, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D);
+//void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D);
+//void load_points(std::string path, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D);
 
 void initialize(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::string scale_X, std::string scale_Y, Quadtree& Q, BinaryTree& X, BinaryTree& Y);
 void initialize(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::string scale_X, std::string scale_Y, Quadtree& Q1, Quadtree& Q2, BinaryTree& X1, BinaryTree& X2, BinaryTree& Y1, BinaryTree& Y2);
 void initialize(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::string scale_X, std::string scale_Y, Quadtree& Q1, Quadtree& Q2, Quadtree& Q3, BinaryTree& X1, BinaryTree& X2, BinaryTree& X3, BinaryTree& Y1, BinaryTree& Y2, BinaryTree& Y3);
 void initialize(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<std::string> scale_x, std::vector<std::pair<std::string, std::string>> scale_z, std::vector<BinaryTree> &data_1D, std::vector<Quadtree> &data_2D);
-void initialize(std::string path_to_sim, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<std::string> scale_1D, std::vector<std::pair<std::string, std::string>> scale_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D);
+//void initialize(std::string path_to_sim, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<std::string> scale_1D, std::vector<std::pair<std::string, std::string>> scale_2D, std::vector<BinaryTree>& data_1D, std::vector<Quadtree>& data_2D);
 
 class Octree {
 private:
