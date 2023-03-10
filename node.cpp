@@ -35,6 +35,9 @@ void Parameters::initialize() {
 	merge_fraction_2D.resize(0);
     initial_depth_1D.resize(0);
     initial_depth_2D.resize(0);
+    saveBins = true;
+    saveCDF = true;
+    saveTree = true;
 }
 
 void Parameters::setFieldnames(std::string fname_x, std::string fname_y) {

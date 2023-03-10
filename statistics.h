@@ -59,8 +59,12 @@ void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Qu
 void populate_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double field_x[], double field_y[], int field_size, const Parameters &params);
 void pack_weights(const std::vector<BinaryTree> &histograms1D, const std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params);
 void unpack_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params);
+void unpack_weights_clean(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params);
+void collect_weights(std::vector<BinaryTree> &histograms1D, const std::vector<BinaryTree> &histograms1D_other, std::vector<Quadtree> &histograms2D, const std::vector<Quadtree> &histograms2D_other, const Parameters &params);
 void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int frame);
+void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int frame, int rank, int Nthreads);
 void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output);
+void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int rank, int Nthreads);
 void extract_histograms(std::string path_to_sim, std::string path_output, Parameters params, int rank, int Nthreads);
 
 #endif

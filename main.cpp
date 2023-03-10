@@ -247,15 +247,21 @@ int main(int argc, char *argv[]) {
 	params.addFrame(52);
 	params.setFieldnames("rho", "absv");
 	
-	params.add1Dtransform(fun_logrho_from_rho, "logrho_" + std::to_string(Nthreads), 10);
-	params.add1Dtransform(fun_absv, "absv_" + std::to_string(Nthreads), 10);
-	params.add1Dtransform(fun_shiftlog_Helmholtz_from_rho, "Helmholtz_" + std::to_string(Nthreads), 10);
-	params.add1Dtransform(fun_log_kinetic_from_rho, "kinetic_" + std::to_string(Nthreads), 10);
+	//params.add1Dtransform(fun_logrho_from_rho, "logrho_" + std::to_string(Nthreads), 10);
+	//params.add1Dtransform(fun_absv, "absv_" + std::to_string(Nthreads), 10);
+	//params.add1Dtransform(fun_shiftlog_Helmholtz_from_rho, "Helmholtz_" + std::to_string(Nthreads), 10);
+	//params.add1Dtransform(fun_log_kinetic_from_rho, "kinetic_" + std::to_string(Nthreads), 10);
 	
-	params.add2Dtransform(fun_logrho_from_rho, fun_absv, "logrho_absv_" + std::to_string(Nthreads), 10);
+	//params.add2Dtransform(fun_logrho_from_rho, fun_absv, "logrho_absv_" + std::to_string(Nthreads), 10);
 	params.add2Dtransform(fun_shiftlog_Helmholtz_from_rho, fun_log_kinetic_from_rho, "Helmholtz_kinetic_" + std::to_string(Nthreads), 10);
 	
 	params.setMergeFractions({"1e-4", "1e-3", "1e-2"},{"1e-7", "1e-6", "1e-5", "1e-4"});
+
+	params.addWeight(weight_volume, "V");
+	//params.addWeight(weight_mass_from_rho, "M");
+	//params.addWeight(weight_kinetic_from_rho, "E");
+	
+	params.saveTree = false;
 
 	extract_histograms(path, path_out, params, rank, Nthreads);
 

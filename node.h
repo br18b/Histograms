@@ -39,6 +39,7 @@ public:
 	std::vector<std::string> merge_fraction_2D;
 	std::vector<int> initial_depth_1D;
 	std::vector<int> initial_depth_2D;
+	bool saveBins, saveCDF, saveTree;
 	void initialize();
 	void addFrame(int f);
 	void setFrames(int start, int end);
