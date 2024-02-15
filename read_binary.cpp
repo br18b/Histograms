@@ -1,5 +1,21 @@
 #include "read_binary.h"
 
+void handle_set(long double &res, std::multiset<long double> &set, bool override) {
+	if (override || (set.size() >= 4096)) {
+		std::set<double>::iterator it;
+		double foo = 0;
+
+		for (auto s: set) foo += s;
+		res += foo;
+
+		set.clear();
+	}
+}
+
+void handle_set(long double &res, std::multiset<long double> &set) {
+	handle_set(res, set, false);
+}
+
 int read_from_binary(std::string path, std::string prefix, std::string name, std::vector<double>& x, bool verbose) {
 	std::fstream file(path + prefix + "_" + name + ".dat", std::ios::binary | std::ios::in | std::ios::ate);
 	if (file) {
@@ -109,27 +125,34 @@ int read_from_hdf5(std::string filename, std::string groupname, std::string fiel
 			//std::cout << groupname << " " << fieldname << std::endl;
 		}
 	}
-	
 	// catch failure caused by the H5File operations
 	catch( FileIException error ) {
+		std::cout << "Tried reading from" << std::endl;
+		std::cout << filename << std::endl;
 		error.printErrorStack();
 		return -1;
 	}
 
 	// catch failure caused by the DataSet operations
 	catch( DataSetIException error ) {
+		std::cout << "Tried reading from" << std::endl;
+		std::cout << filename << std::endl;
 		error.printErrorStack();
 		return -1;
 	}
 
 	// catch failure caused by the DataSpace operations
 	catch( DataSpaceIException error ) {
+		std::cout << "Tried reading from" << std::endl;
+		std::cout << filename << std::endl;
 		error.printErrorStack();
 		return -1;
 	}
 
 	// catch failure caused by the DataSpace operations
 	catch( DataTypeIException error ) {
+		std::cout << "Tried reading from" << std::endl;
+		std::cout << filename << std::endl;
 		error.printErrorStack();
 		return -1;
 	}
@@ -192,7 +215,7 @@ int getSize(std::string filename, std::string groupname) {
 	return 0;
 }
 
-int read_from_hdf5(std::string filename, std::string groupname, std::string fieldname, double res[], int size) {
+int read_from_hdf5(std::string filename, std::string groupname, std::string fieldname, long double res[], int size) {
 	if ((fieldname == "density") || (fieldname == "rho")) fieldname = "Density";
 	else if (fieldname == "vx") fieldname = "x-velocity";
 	else if (fieldname == "vy") fieldname = "y-velocity";
@@ -202,9 +225,9 @@ int read_from_hdf5(std::string filename, std::string groupname, std::string fiel
 	//std::cout << "poop " << fieldname << std::endl;
 	try {
 		if ((fieldname == "absv") || (fieldname == "velocity-magnitude") || (fieldname == "v")) {
-			double vx[size];
-			double vy[size];
-			double vz[size];
+			long double vx[size];
+			long double vy[size];
+			long double vz[size];
 			read_from_hdf5(filename, groupname, "x-velocity", vx, size);
 			read_from_hdf5(filename, groupname, "y-velocity", vy, size);
 			read_from_hdf5(filename, groupname, "z-velocity", vz, size);
@@ -231,7 +254,7 @@ int read_from_hdf5(std::string filename, std::string groupname, std::string fiel
 			dataspace.selectHyperslab(H5S_SELECT_SET, dims, offset);
 			//std::cout << "foo9" << std::endl;
 			DataSpace memspace(rank, dims);
-			dataset.read(res, PredType::NATIVE_DOUBLE, memspace, dataspace);
+			dataset.read(res, PredType::NATIVE_LDOUBLE, memspace, dataspace);
 		}
 	}
 	

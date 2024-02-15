@@ -253,7 +253,7 @@ void extract_stats_parallel(std::string path_to_sim, std::string path_output, st
 		}
 	}
 }
-
+/*
 void extract_1D_histogram_parallel(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::function<double(double, double)> weight_fun, std::function<double(double, double)> field_1D, int depth, std::vector<std::string> merge_1D, std::string outputname_x, std::string outputpostfix_weight, int rank, int Nthreads) {
 	delete_trailing(path_to_sim, '/'); delete_trailing(path_output, '/');
 	
@@ -378,7 +378,7 @@ void extract_1D_histogram_parallel(std::string path_to_sim, std::string path_out
 			
 			//if (rank == 0) std::cout << "Filling histograms " << field_x.size() << " " << field_x[0] << " " << field_y[0] << std::endl;
 
-			histogram1D.load_points(field_x, field_y, field_1D, weight_fun, field_size);
+			//histogram1D.load_points(field_x, field_y, field_1D, weight_fun, field_size);
 
 			if (rank == 0) std::cout << j + 1 << "/" << my_grids.size() << std::endl;
 			// actual points are stored in BinaryTree within Node1D.weight - public interface.
@@ -430,105 +430,118 @@ void extract_1D_histogram_parallel(std::string path_to_sim, std::string path_out
 		}
 	}
 }
+*/
+void initialize_bounds(long double bounds[], const Parameters &params) {
+	for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
+		bounds[0 + 2 * h1D] = 1e10;
+		bounds[1 + 2 * h1D] = -1e10;
+	}
+	int bounds_offset = 2 * params.transform_1D.size();
 
-void initialize_bounds(double bounds[], const Parameters &params) {
-	for (int w = 0; w < params.weight.size(); w++) {
-		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
-			bounds[0 + 2 * h1D + 2 * params.transform_1D.size() * w] = 1e10;
-			bounds[1 + 2 * h1D + 2 * params.transform_1D.size() * w] = -1e10;
-		}
-		int offset = 2 * params.transform_1D.size() * params.weight.size();
-		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
-			bounds[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w] = 1e10;
-			bounds[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w] = -1e10;
-			bounds[offset + 2 + 4 * h2D + 4 * params.transform_2D.size() * w] = 1e10;
-			bounds[offset + 3 + 4 * h2D + 4 * params.transform_2D.size() * w] = -1e10;
-		}
+	for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
+		bounds[bounds_offset + 0 + 4 * h2D] = 1e10;
+		bounds[bounds_offset + 1 + 4 * h2D] = -1e10;
+		bounds[bounds_offset + 2 + 4 * h2D] = 1e10;
+		bounds[bounds_offset + 3 + 4 * h2D] = -1e10;
 	}
 }
 
-void adjust_bounds(double bounds[], const Parameters &params, double field_x[], double field_y[], int field_size) {
+void extract_stats(long double pars[], const Parameters &params, long double field_x[], long double field_y[], int field_size) {
+	std::vector<std::multiset<long double>> stat_set;
+	stat_set.resize(2 * params.stat_fun.size());
+
+	for (int k = 0; k < params.stat_fun.size(); k++) {
+		const auto &stat = params.stat_fun[k];
+
+		for(int i = 0; i < field_size; i++) {
+			long double stat_val = stat(field_x[i], field_y[i]);
+
+			if (stat_val > 0) stat_set[2 * k].insert(stat_val);
+			else stat_set[2 * k + 1].insert(-stat_val);
+
+			handle_set(pars[2 * k], stat_set[2 * k]);
+			handle_set(pars[2 * k + 1], stat_set[2 * k + 1]);
+		}
+		
+		handle_set(pars[2 * k], stat_set[2 * k], true);
+		handle_set(pars[2 * k + 1], stat_set[2 * k + 1], true);
+	}
+}
+
+void adjust_bounds(long double bounds[], const Parameters &params, long double field_x[], long double field_y[], int field_size) {
 	for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
 		const auto &field_1D = params.transform_1D[h1D];
-			
-		for (int w = 0; w < params.weight.size(); w++) {
-			double &xmin = bounds[0 + 2 * h1D + 2 * params.transform_1D.size() * w];
-			double &xmax = bounds[1 + 2 * h1D + 2 * params.transform_1D.size() * w];
 
-			for(int i = 0; i < field_size; i++) {
-				double val = field_1D(field_x[i], field_y[i]);
-				if (xmin > val) xmin = val;
-				if (xmax < val) xmax = val;
-			}
+		long double &xmin = bounds[0 + 2 * h1D];
+		long double &xmax = bounds[1 + 2 * h1D];
+
+		for(int i = 0; i < field_size; i++) {
+			double val = field_1D(field_x[i], field_y[i]);
+			if (xmin > val) xmin = val;
+			if (xmax < val) xmax = val;
 		}
 	}
 			
-	int offset = 2 * params.transform_1D.size() * params.weight.size();
+	int bounds_offset = 2 * params.transform_1D.size();
 
 	for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
 		const auto &field_2D_x = params.transform_2D[h2D].first;
 		const auto &field_2D_y = params.transform_2D[h2D].second;
 				
-		for (int w = 0; w < params.weight.size(); w++) {
-			double &xmin = bounds[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &xmax = bounds[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymin = bounds[offset + 2 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymax = bounds[offset + 3 + 4 * h2D + 4 * params.transform_2D.size() * w];
+		long double &xmin = bounds[bounds_offset + 0 + 4 * h2D];
+		long double &xmax = bounds[bounds_offset + 1 + 4 * h2D];
+		long double &ymin = bounds[bounds_offset + 2 + 4 * h2D];
+		long double &ymax = bounds[bounds_offset + 3 + 4 * h2D];
 
-			for(int i = 0; i < field_size; i++) {
-				double val_x = field_2D_x(field_x[i], field_y[i]);
-				double val_y = field_2D_y(field_x[i], field_y[i]);
-				if (xmin > val_x) xmin = val_x;
-				if (xmax < val_x) xmax = val_x;
-				if (ymin > val_y) ymin = val_y;
-				if (ymax < val_y) ymax = val_y;
-			}
+		for(int i = 0; i < field_size; i++) {
+			double val_x = field_2D_x(field_x[i], field_y[i]);
+			double val_y = field_2D_y(field_x[i], field_y[i]);
+			if (xmin > val_x) xmin = val_x;
+			if (xmax < val_x) xmax = val_x;
+			if (ymin > val_y) ymin = val_y;
+			if (ymax < val_y) ymax = val_y;
 		}
 	}
 }
 
-void adjust_main_bounds(double bounds[], double bounds_other[], const Parameters &params) {
+void adjust_main_bounds(long double bounds[], long double bounds_other[], const Parameters &params) {
 	for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
-		for (int w = 0; w < params.weight.size(); w++) {
-			double &xmin = bounds[0 + 2 * h1D + 2 * params.transform_1D.size() * w];
-			double &xmax = bounds[1 + 2 * h1D + 2 * params.transform_1D.size() * w];
+		long double &xmin = bounds[0 + 2 * h1D];
+		long double &xmax = bounds[1 + 2 * h1D];
 
-			double &xmin_other = bounds_other[0 + 2 * h1D + 2 * params.transform_1D.size() * w];
-			double &xmax_other = bounds_other[1 + 2 * h1D + 2 * params.transform_1D.size() * w];
+		const long double &xmin_other = bounds_other[0 + 2 * h1D];
+		const long double &xmax_other = bounds_other[1 + 2 * h1D];
 
-			if (xmin > xmin_other) xmin = xmin_other;
-			if (xmax < xmax_other) xmax = xmax_other;
-		}
+		if (xmin > xmin_other) xmin = xmin_other;
+		if (xmax < xmax_other) xmax = xmax_other;
 	}
 			
-	int offset = 2 * params.transform_1D.size() * params.weight.size();
+	int bounds_offset = 2 * params.transform_1D.size();
 
 	for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
-		for (int w = 0; w < params.weight.size(); w++) {
-			double &xmin = bounds[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &xmax = bounds[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymin = bounds[offset + 2 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymax = bounds[offset + 3 + 4 * h2D + 4 * params.transform_2D.size() * w];
-					
-			double &xmin_other = bounds_other[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &xmax_other = bounds_other[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymin_other = bounds_other[offset + 2 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymax_other = bounds_other[offset + 3 + 4 * h2D + 4 * params.transform_2D.size() * w];
+		long double &xmin = bounds[bounds_offset + 0 + 4 * h2D];
+		long double &xmax = bounds[bounds_offset + 1 + 4 * h2D];
+		long double &ymin = bounds[bounds_offset + 2 + 4 * h2D];
+		long double &ymax = bounds[bounds_offset + 3 + 4 * h2D];
+			
+		const long double &xmin_other = bounds_other[bounds_offset + 0 + 4 * h2D];
+		const long double &xmax_other = bounds_other[bounds_offset + 1 + 4 * h2D];
+		const long double &ymin_other = bounds_other[bounds_offset + 2 + 4 * h2D];
+		const long double &ymax_other = bounds_other[bounds_offset + 3 + 4 * h2D];
 
-			if (xmin > xmin_other) xmin = xmin_other;
-			if (xmax < xmax_other) xmax = xmax_other;
-			if (ymin > ymin_other) ymin = ymin_other;
-			if (ymax < ymax_other) ymax = ymax_other;
-		}
+		if (xmin > xmin_other) xmin = xmin_other;
+		if (xmax < xmax_other) xmax = xmax_other;
+		if (ymin > ymin_other) ymin = ymin_other;
+		if (ymax < ymax_other) ymax = ymax_other;
 	}
 }
 
-void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double bounds[], const Parameters &params, int &weights_count) {
+void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double bounds[], const Parameters &params, int &weights_count) {
 	weights_count = 0;
 	for (int w = 0; w < params.weight.size(); w++) {
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
-			double &xmin = bounds[0 + 2 * h1D + 2 * params.transform_1D.size() * w];
-			double &xmax = bounds[1 + 2 * h1D + 2 * params.transform_1D.size() * w];
+			long double &xmin = bounds[0 + 2 * h1D];
+			long double &xmax = bounds[1 + 2 * h1D];
 			auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 
 			hist1D.initialize(xmin, xmax, "lin");
@@ -536,13 +549,13 @@ void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Qu
 			weights_count += hist1D.nodes.size();
 		}
 			
-		int offset = 2 * params.transform_1D.size() * params.weight.size();
+		int bounds_offset = 2 * params.transform_1D.size();
 
 		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
-			double &xmin = bounds[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &xmax = bounds[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymin = bounds[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymax = bounds[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w];
+			long double &xmin = bounds[bounds_offset + 0 + 4 * h2D];
+			long double &xmax = bounds[bounds_offset + 1 + 4 * h2D];
+			long double &ymin = bounds[bounds_offset + 2 + 4 * h2D];
+			long double &ymax = bounds[bounds_offset + 3 + 4 * h2D];
 			auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 
 			hist2D.initialize(xmin, xmax, ymin, ymax, "lin", "lin");
@@ -552,7 +565,7 @@ void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Qu
 	}
 }
 
-void populate_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double field_x[], double field_y[], int field_size, const Parameters &params) {
+void populate_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double field_x[], long double field_y[], int field_size, const Parameters &params) {
 	for (int w = 0; w < params.weight.size(); w++) {
 		const auto &weight_fun = params.weight[w];
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
@@ -572,73 +585,186 @@ void populate_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quad
 	}
 }
 
-void pack_weights(const std::vector<BinaryTree> &histograms1D, const std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params) {
+void populate_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double field_x[], long double field_y[], int field_size, const Parameters &params) {
+	for (int w = 0; w < params.weight.size(); w++) {
+		const auto &weight_fun = params.weight[w];
+
+		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
+			const auto &field_1D = params.transform_1D[h1D];
+
+			for (int m = 0; m < params.merge_fraction_1D.size(); m++) {
+				int hist_index = w + params.weight.size() * h1D + params.weight.size() * params.transform_1D.size() * m;
+				auto &hist1D = histograms1D[hist_index];
+				
+				hist1D.load_points(field_x, field_y, field_1D, weight_fun, field_size);
+			}
+		}
+		
+		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
+			const auto &field_2D_x = params.transform_2D[h2D].first;
+			const auto &field_2D_y = params.transform_2D[h2D].second;
+
+			for (int m = 0; m < params.merge_fraction_2D.size(); m++) {
+				int hist_index = w + params.weight.size() * h2D + params.weight.size() * params.transform_2D.size() * m;
+				auto &hist2D = histograms2D[hist_index];
+
+				hist2D.load_points(field_x, field_y, field_2D_x, field_2D_y, weight_fun, field_size);
+			}
+		}
+	}
+}
+
+void pack_weights(const std::vector<BinaryTree> &histograms1D, const std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params) {
+	int weights_offset = 0;
 	for (int w = 0; w < params.weight.size(); w++) {
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
 			const auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 			
 			for (int i = 0; i < hist1D.nodes.size(); i++) {
-				histogram_weights[i + hist1D.nodes.size() * h1D + hist1D.nodes.size() * params.transform_1D.size() * w] = hist1D.nodes[i].weight;
+				histogram_weights[weights_offset + i] = hist1D.nodes[i].weight;
 			}
+			weights_offset += hist1D.nodes.size();
 		}
-
-		int weight_offset;
-		if (params.transform_1D.size() > 0) weight_offset = histograms1D[0].nodes.size() * params.transform_1D.size() * params.weight.size();
-		else weight_offset = 0;
 		
 		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
 			const auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 
 			for (int i = 0; i < hist2D.nodes.size(); i++) {
-				histogram_weights[weight_offset + i + hist2D.nodes.size() * h2D + hist2D.nodes.size() * params.transform_2D.size() * w] = hist2D.nodes[i].weight;
+				histogram_weights[weights_offset + i] = hist2D.nodes[i].weight;
 			}
+			weights_offset += hist2D.nodes.size();
 		}
 	}
 }
 
-void unpack_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params) {
+void unpack_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params) {
+	int weights_offset = 0;
 	for (int w = 0; w < params.weight.size(); w++) {
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
 			auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 			
 			for (int i = 0; i < hist1D.nodes.size(); i++) {
-				hist1D.nodes[i].weight += histogram_weights[i + hist1D.nodes.size() * h1D + hist1D.nodes.size() * params.transform_1D.size() * w];
+				hist1D.nodes[i].weight += histogram_weights[weights_offset + i];
 			}
+			weights_offset += hist1D.nodes.size();
 		}
-
-		int weight_offset;
-		if (params.transform_1D.size() > 0) weight_offset = histograms1D[0].nodes.size() * params.transform_1D.size() * params.weight.size();
-		else weight_offset = 0;
 		
 		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
 			auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 
 			for (int i = 0; i < hist2D.nodes.size(); i++) {
-				hist2D.nodes[i].weight += histogram_weights[weight_offset + i + hist2D.nodes.size() * h2D + hist2D.nodes.size() * params.transform_2D.size() * w];
+				hist2D.nodes[i].weight += histogram_weights[weights_offset + i];
 			}
+			weights_offset += hist2D.nodes.size();
 		}
 	}
 }
 
-void unpack_weights_clean(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params) {
+void unpack_weights_clean(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params) {
+	int weights_offset = 0;
 	for (int w = 0; w < params.weight.size(); w++) {
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
 			auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 			
 			for (int i = 0; i < hist1D.nodes.size(); i++) {
-				hist1D.nodes[i].weight = histogram_weights[i + hist1D.nodes.size() * h1D + hist1D.nodes.size() * params.transform_1D.size() * w];
+				hist1D.nodes[i].weight = histogram_weights[weights_offset + i];
 			}
+			weights_offset += hist1D.nodes.size();
 		}
-
-		int weight_offset;
-		if (params.transform_1D.size() > 0) weight_offset = histograms1D[0].nodes.size() * params.transform_1D.size() * params.weight.size();
-		else weight_offset = 0;
 		
 		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
 			auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 
 			for (int i = 0; i < hist2D.nodes.size(); i++) {
-				hist2D.nodes[i].weight = histogram_weights[weight_offset + i + hist2D.nodes.size() * h2D + hist2D.nodes.size() * params.transform_2D.size() * w];
+				hist2D.nodes[i].weight = histogram_weights[weights_offset + i];
+			}
+			weights_offset += hist2D.nodes.size();
+		}
+	}
+}
+
+void pack_weights_single_frame(const std::vector<BinaryTree> &histograms1D, const std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params) {
+	int weights_offset = 0;
+	for (int w = 0; w < params.weight.size(); w++) {
+		for (int m = 0; m < params.merge_fraction_1D.size(); m++) {
+			for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
+				int hist_index = w + params.weight.size() * h1D + params.weight.size() * params.transform_1D.size() * m;
+				const auto &hist1D = histograms1D[hist_index];
+				
+				for (int i = 0; i < hist1D.nodes.size(); i++) {
+					histogram_weights[weights_offset + i] = hist1D.nodes[i].weight;
+				}
+				weights_offset += hist1D.nodes.size();
+			}
+		}
+		
+		for (int m = 0; m < params.merge_fraction_2D.size(); m++) {
+			for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
+				int hist_index = w + params.weight.size() * h2D + params.weight.size() * params.transform_2D.size() * m;
+				const auto &hist2D = histograms2D[hist_index];
+
+				for (int i = 0; i < hist2D.nodes.size(); i++) {
+					histogram_weights[weights_offset + i] = hist2D.nodes[i].weight;
+				}
+				weights_offset += hist2D.nodes.size();
+			}
+		}
+	}
+}
+
+void unpack_weights_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params) {
+	int weights_offset = 0;
+	for (int w = 0; w < params.weight.size(); w++) {
+		for (int m = 0; m < params.merge_fraction_1D.size(); m++) {
+			for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
+				int hist_index = w + params.weight.size() * h1D + params.weight.size() * params.transform_1D.size() * m;
+				auto &hist1D = histograms1D[hist_index];
+				
+				for (int i = 0; i < hist1D.nodes.size(); i++) {
+					hist1D.nodes[i].weight += histogram_weights[weights_offset + i];
+				}
+				weights_offset += hist1D.nodes.size();
+			}
+		}
+		
+		for (int m = 0; m < params.merge_fraction_2D.size(); m++) {
+			for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
+				int hist_index = w + params.weight.size() * h2D + params.weight.size() * params.transform_2D.size() * m;
+				auto &hist2D = histograms2D[hist_index];
+
+				for (int i = 0; i < hist2D.nodes.size(); i++) {
+					hist2D.nodes[i].weight += histogram_weights[weights_offset + i];
+				}
+				weights_offset += hist2D.nodes.size();
+			}
+		}
+	}
+}
+
+void unpack_weights_clean_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params) {
+	int weights_offset = 0;
+	for (int w = 0; w < params.weight.size(); w++) {
+		for (int m = 0; m < params.merge_fraction_1D.size(); m++) {
+			for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
+				int hist_index = w + params.weight.size() * h1D + params.weight.size() * params.transform_1D.size() * m;
+				auto &hist1D = histograms1D[hist_index];
+				
+				for (int i = 0; i < hist1D.nodes.size(); i++) {
+					hist1D.nodes[i].weight = histogram_weights[weights_offset + i];
+				}
+				weights_offset += hist1D.nodes.size();
+			}
+		}
+		
+		for (int m = 0; m < params.merge_fraction_2D.size(); m++) {
+			for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
+				int hist_index = w + params.weight.size() * h2D + params.weight.size() * params.transform_2D.size() * m;
+				auto &hist2D = histograms2D[hist_index];
+
+				for (int i = 0; i < hist2D.nodes.size(); i++) {
+					hist2D.nodes[i].weight = histogram_weights[weights_offset + i];
+				}
+				weights_offset += hist2D.nodes.size();
 			}
 		}
 	}
@@ -670,51 +796,64 @@ void collect_weights(std::vector<BinaryTree> &histograms1D, const std::vector<Bi
 	}
 }
 
-void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int frame) {
+void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, int frame, int rank, int Nthreads) {
+	int r = 0;
 	for (int w = 0; w < params.weight.size(); w++) {
 		const std::string &postfix_weight = params.postfix_weight[w];
+
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
-			auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 			const std::string &outputname = params.name_transform_1D[h1D];
-			
-			for (int m = 0; m < params.merge_fraction_1D.size(); m++){
-				const std::string &merge_fraction_postfix = params.merge_fraction_1D[m];
-				double merge_fraction = std::stod(params.merge_fraction_1D[m]);
 
-				hist1D.merge(merge_fraction);
+			for (int m = 0; m < params.merge_fraction_1D.size(); m++) {
+				if (r == rank) {
+					int hist_index = w + params.weight.size() * h1D + params.weight.size() * params.transform_1D.size() * m;
+					auto &hist1D = histograms1D[hist_index];
+					const std::string &merge_fraction_postfix = params.merge_fraction_1D[m];
 
-				hist1D.save_structure(path_output, outputname + "_bintree_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				hist1D.save_leaves(path_output, outputname + "_bins_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				hist1D.prob_to_pdf(path_output, outputname + "_CDF_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveTree) hist1D.save_structure(params.path_output, outputname + "_bintree_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveBins) hist1D.save_leaves(params.path_output, outputname + "_bins_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveCDF) hist1D.prob_to_pdf(params.path_output, outputname + "_CDF_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					
+				}
+				r++;
+				if (r == Nthreads) r = 0;
 			}
 		}
 		
 		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
-			auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 			const std::string &outputname = params.name_transform_2D[h2D];
 
-			for (int m = 0; m < params.merge_fraction_2D.size(); m++){
-				const std::string &merge_fraction_postfix = params.merge_fraction_2D[m];
-				double merge_fraction = std::stod(params.merge_fraction_2D[m]);
+			for (int m = 0; m < params.merge_fraction_2D.size(); m++) {
+				if (r == rank) {
+					int hist_index = w + params.weight.size() * h2D + params.weight.size() * params.transform_2D.size() * m;
+					auto &hist2D = histograms2D[hist_index];
+					const std::string &merge_fraction_postfix = params.merge_fraction_2D[m];
 
-				hist2D.merge(merge_fraction);
-
-				hist2D.save_structure(path_output, outputname + "_bintree_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				hist2D.save_leaves(path_output, outputname + "_bins_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				hist2D.prob_to_pdf(path_output, outputname + "_CDF_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveTree) hist2D.save_structure(params.path_output, outputname + "_bintree_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveBins) hist2D.save_leaves(params.path_output, outputname + "_bins_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveCDF) hist2D.prob_to_pdf(params.path_output, outputname + "_CDF_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+				}
+				r++;
+				if (r == Nthreads) r = 0;
 			}
 		}
 	}
 }
 
-void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int frame, int rank, int Nthreads) {
+void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, int rank, int Nthreads) {
 	int r = 0;
+	int frame_start = params.frames[0];
+	int frame_end = params.frames.back();
 	for (int w = 0; w < params.weight.size(); w++) {
 		const std::string &postfix_weight = params.postfix_weight[w];
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
 			if (r == rank) {
 				auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 				const std::string &outputname = params.name_transform_1D[h1D];
+
+				if (params.saveTree) hist1D.save_structure(params.path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_default.txt");
+				if (params.saveBins) hist1D.save_leaves(params.path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_default.txt");
+				if (params.saveCDF) hist1D.prob_to_pdf(params.path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_default.txt");
 				
 				for (int m = 0; m < params.merge_fraction_1D.size(); m++){
 					const std::string &merge_fraction_postfix = params.merge_fraction_1D[m];
@@ -722,9 +861,9 @@ void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::ve
 
 					hist1D.merge(merge_fraction);
 
-					hist1D.save_structure(path_output, outputname + "_bintree_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					hist1D.save_leaves(path_output, outputname + "_bins_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					hist1D.prob_to_pdf(path_output, outputname + "_CDF_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveTree) hist1D.save_structure(params.path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveBins) hist1D.save_leaves(params.path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveCDF) hist1D.prob_to_pdf(params.path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
 				}
 			}
 			r++;
@@ -736,15 +875,19 @@ void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::ve
 				auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 				const std::string &outputname = params.name_transform_2D[h2D];
 
+				if (params.saveTree) hist2D.save_structure(params.path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_default.txt");
+				if (params.saveBins) hist2D.save_leaves(params.path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_default.txt");
+				if (params.saveCDF) hist2D.prob_to_pdf(params.path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_default.txt");
+
 				for (int m = 0; m < params.merge_fraction_2D.size(); m++){
 					const std::string &merge_fraction_postfix = params.merge_fraction_2D[m];
 					double merge_fraction = std::stod(params.merge_fraction_2D[m]);
 
 					hist2D.merge(merge_fraction);
 
-					hist2D.save_structure(path_output, outputname + "_bintree_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					hist2D.save_leaves(path_output, outputname + "_bins_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					hist2D.prob_to_pdf(path_output, outputname + "_CDF_frame_" + std::to_string(frame) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveTree) hist2D.save_structure(params.path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveBins) hist2D.save_leaves(params.path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+					if (params.saveCDF) hist2D.prob_to_pdf(params.path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
 				}
 			}
 			r++;
@@ -753,314 +896,442 @@ void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::ve
 	}
 }
 
-void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output) {
+void load_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, int &weights_count) {
+	weights_count = 0;
 	int frame_start = params.frames[0];
 	int frame_end = params.frames.back();
 	for (int w = 0; w < params.weight.size(); w++) {
 		const std::string &postfix_weight = params.postfix_weight[w];
+
 		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
-			auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
 			const std::string &outputname = params.name_transform_1D[h1D];
-			
-			for (int m = 0; m < params.merge_fraction_1D.size(); m++){
+
+			for (int m = 0; m < params.merge_fraction_1D.size(); m++) {
+				int hist_index = w + params.weight.size() * h1D + params.weight.size() * params.transform_1D.size() * m;
+				auto &hist1D = histograms1D[hist_index];
 				const std::string &merge_fraction_postfix = params.merge_fraction_1D[m];
-				double merge_fraction = std::stod(params.merge_fraction_1D[m]);
+				std::string filename = outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt";
+				//std::cout << "Opening " << filename << std::endl;
 
-				hist1D.merge(merge_fraction);
-
-				if (params.saveTree) hist1D.save_structure(path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				if (params.saveBins) hist1D.save_leaves(path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				if (params.saveCDF) hist1D.prob_to_pdf(path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
+				hist1D.load_tree(params.path_output, filename);
+				
+				weights_count += hist1D.nodes.size();
 			}
 		}
 		
 		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
-			auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
 			const std::string &outputname = params.name_transform_2D[h2D];
 
 			for (int m = 0; m < params.merge_fraction_2D.size(); m++){
+				int hist_index = w + params.weight.size() * h2D + params.weight.size() * params.transform_2D.size() * m;
+				auto &hist2D = histograms2D[hist_index];
 				const std::string &merge_fraction_postfix = params.merge_fraction_2D[m];
-				double merge_fraction = std::stod(params.merge_fraction_2D[m]);
+				std::string filename = outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt";
+				//std::cout << "Opening " << filename << std::endl;
 
-				hist2D.merge(merge_fraction);
-
-				if (params.saveTree) hist2D.save_structure(path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				if (params.saveBins) hist2D.save_leaves(path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				if (params.saveCDF) hist2D.prob_to_pdf(path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-			}
-		}
-	}
-}
-
-void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int rank, int Nthreads) {
-	int r = 0;
-	int frame_start = params.frames[0];
-	int frame_end = params.frames.back();
-	for (int w = 0; w < params.weight.size(); w++) {
-		const std::string &postfix_weight = params.postfix_weight[w];
-		for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
-			if (r == rank) {
-				auto &hist1D = histograms1D[h1D + params.transform_1D.size() * w];
-				const std::string &outputname = params.name_transform_1D[h1D];
+				hist2D.load_tree(params.path_output, filename);
 				
-				for (int m = 0; m < params.merge_fraction_1D.size(); m++){
-					const std::string &merge_fraction_postfix = params.merge_fraction_1D[m];
-					double merge_fraction = std::stod(params.merge_fraction_1D[m]);
-
-					hist1D.merge(merge_fraction);
-
-					if (params.saveTree) hist1D.save_structure(path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					if (params.saveBins) hist1D.save_leaves(path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					if (params.saveCDF) hist1D.prob_to_pdf(path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				}
+				weights_count += hist2D.nodes.size();
 			}
-			r++;
-			if (r == Nthreads) r = 0;
-		}
-		
-		for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
-			if (r == rank) {
-				auto &hist2D = histograms2D[h2D + params.transform_2D.size() * w];
-				const std::string &outputname = params.name_transform_2D[h2D];
-
-				for (int m = 0; m < params.merge_fraction_2D.size(); m++){
-					const std::string &merge_fraction_postfix = params.merge_fraction_2D[m];
-					double merge_fraction = std::stod(params.merge_fraction_2D[m]);
-
-					hist2D.merge(merge_fraction);
-
-					if (params.saveTree) hist2D.save_structure(path_output, outputname + "_bintree_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					if (params.saveBins) hist2D.save_leaves(path_output, outputname + "_bins_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-					if (params.saveCDF) hist2D.prob_to_pdf(path_output, outputname + "_CDF_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + "_" + postfix_weight + "_" + merge_fraction_postfix + ".txt");
-				}
-			}
-			r++;
-			if (r == Nthreads) r = 0;
 		}
 	}
 }
 
-void write_bounds(double bounds[], const Parameters &params) {
+void write_bounds(long double bounds[], const Parameters &params) {
 	for (int h1D = 0; h1D < params.transform_1D.size(); h1D++) {
 		for (int w = 0; w < params.weight.size(); w++) {
-			double &xmin = bounds[0 + 2 * h1D + 2 * params.transform_1D.size() * w];
-			double &xmax = bounds[1 + 2 * h1D + 2 * params.transform_1D.size() * w];
+			long double &xmin = bounds[0 + 2 * h1D];
+			long double &xmax = bounds[1 + 2 * h1D];
 
 			std::cout << params.name_transform_1D[h1D] << ", (" << params.postfix_weight[w] << "): (" << xmin << ", " << xmax << ")" << std::endl;
 		}
 	}
 			
-	int offset = 2 * params.transform_1D.size() * params.weight.size();
+	int offset = 2 * params.transform_1D.size();
 
 	for (int h2D = 0; h2D < params.transform_2D.size(); h2D++) {
 		for (int w = 0; w < params.weight.size(); w++) {
-			double &xmin = bounds[offset + 0 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &xmax = bounds[offset + 1 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymin = bounds[offset + 2 + 4 * h2D + 4 * params.transform_2D.size() * w];
-			double &ymax = bounds[offset + 3 + 4 * h2D + 4 * params.transform_2D.size() * w];
+			long double &xmin = bounds[offset + 0 + 4 * h2D];
+			long double &xmax = bounds[offset + 1 + 4 * h2D];
+			long double &ymin = bounds[offset + 2 + 4 * h2D];
+			long double &ymax = bounds[offset + 3 + 4 * h2D];
 
 			std::cout << params.name_transform_2D[h2D] << ", (" << params.postfix_weight[w] << "): (" << xmin << ", " << xmax << "), (" << ymin << ", " << ymax << ")" << std::endl;
 		}
 	}
 }
 
-void extract_histograms(std::string path_to_sim, std::string path_output, Parameters params, int rank, int Nthreads) {
-	delete_trailing(path_to_sim, '/'); delete_trailing(path_output, '/');
-	int tag = 0; int tag_offset = 0;
-	int hist_1D_count = 0;
-	int hist_2D_count = 0;
-	if (params.weight.size() == 0) {
-		params.weight.push_back(weight_default); params.postfix_weight = { "V" };
+void clear_histogram_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D) {
+	for (auto &h1D: histograms1D) {
+		for (auto &n: h1D.nodes) n.weight = 0;
 	}
-	if (params.name_transform_1D.size() == params.transform_1D.size()) {
-		hist_1D_count = params.weight.size() * params.transform_1D.size();
+	
+	for (auto &h2D: histograms2D) {
+		for (auto &n: h2D.nodes) n.weight = 0;
 	}
-	if (params.name_transform_2D.size() == params.transform_2D.size()) {
-		hist_2D_count = params.weight.size() * params.transform_2D.size();
-	}
+}
 
-	int bounds_size = 2 * hist_1D_count + 4 * hist_2D_count;
-
-	double bounds[bounds_size];
-
-	int field_size = getSize(path_to_sim + "/DD" + string_pad_left(params.frames[0], 0, 4) + "/data" + string_pad_left(params.frames[0], 0, 4) + ".cpu0000", "Grid00000001");
-	double field_x[field_size];
-	double field_y[field_size];
-
-	// ____________________//
-	// dealing with bounds //
-	// ____________________//
-	initialize_bounds(bounds, params);
-	for (int i = 0; i < params.frames.size(); i++) { // each thread adjusts its own bounds
-		int frame = params.frames[i];
-		std::vector<std::pair<std::string, int>> my_grids = distribute_grids(path_to_sim, frame, rank, Nthreads);
-		
-		if (rank == 0) std::cout << "Adjusting bounds from frame " << frame << std::endl;
-
-		for (int j = 0; j < my_grids.size(); j++) {
-			int cpu_number = my_grids[j].second;
-			std::string filename = cpu_filename(path_to_sim, frame, cpu_number);
-			std::string groupname = my_grids[j].first;
-
-			read_from_hdf5(filename, groupname, params.fieldname_x, field_x, field_size);
-			read_from_hdf5(filename, groupname, params.fieldname_y, field_y, field_size);
-
-			adjust_bounds(bounds, params, field_x, field_y, field_size);
-
-			if (rank == 0) std::cout << j+1 << "/" << my_grids.size() << std::endl;
+void extract_histograms(Parameters params, int rank, int Nthreads) {
+	if (params.extractGlobal) {
+		if (rank == 0) std::cout << "Extracting global histograms from " << params.path << ", #frames: " << params.frames.size() << std::endl;
+		delete_trailing(params.path, '/'); delete_trailing(params.path_output, '/');
+		long long int Nstat = 0;
+		int tag = 0; int tag_offset = 0;
+		int hist_1D_count = 0;
+		int hist_2D_count = 0;
+		if (params.weight.size() == 0) {
+			params.weight.push_back(weight_default); params.postfix_weight = { "V" };
 		}
-	}
-
-	// ______________________//
-	// exchanging the bounds //
-	// ______________________//
-	if (rank > 0) { // drones send their individual bounds to the head
-		tag = rank;
-		//std::cout << "Rank " << rank << " sending bounds with tag " << tag << std::endl;
-		MPI_Send(bounds, bounds_size, MPI_DOUBLE, 0, tag, MPI_COMM_WORLD);
-		tag_offset += Nthreads;
-	}
-	if (rank == 0) {
-		for (int r = 1; r < Nthreads; r++) { // the head receives the droneses boundses and adjusts the main bounds
-			tag = r;
-			double* bounds_other = new double[bounds_size];
-			//std::cout << "Rank " << rank << " receiving bounds from rank " << r << " with tag " << tag << std::endl;
-			MPI_Recv(bounds_other, bounds_size, MPI_DOUBLE, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-			adjust_main_bounds(bounds, bounds_other, params);
-
-			delete[] bounds_other;
+		if (params.name_transform_1D.size() == params.transform_1D.size()) {
+			hist_1D_count = params.weight.size() * params.transform_1D.size();
 		}
-		
-		write_bounds(bounds, params);
-
-		tag_offset += Nthreads;
-
-		for (int r = 1; r < Nthreads; r++) {
-			tag = tag_offset + r; // the head re-distributes the (now global) bounds to everyone
-			MPI_Send(bounds, bounds_size, MPI_DOUBLE, r, tag, MPI_COMM_WORLD);
+		if (params.name_transform_2D.size() == params.transform_2D.size()) {
+			hist_2D_count = params.weight.size() * params.transform_2D.size();
 		}
-	}
-	if (rank > 0) { // everyone receives the global bounds
-		tag = tag_offset + rank;
-		MPI_Recv(bounds, bounds_size, MPI_DOUBLE, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	}
 
-	tag_offset += Nthreads;
+		int bounds_size = 2 * params.transform_1D.size() + 4 * params.transform_2D.size();
+		int stats_size = 2 * params.stat_fun.size();
 
-	// _______________________________________
-	// the real task - creating the histograms
-	// _______________________________________
-	int weights_count;
-	std::vector<BinaryTree> histograms1D; histograms1D.resize(hist_1D_count);
-	std::vector<Quadtree> histograms2D; histograms2D.resize(hist_2D_count);
-	initialize_histograms(histograms1D, histograms2D, bounds, params, weights_count);
+		long double bounds[bounds_size];
 
-	double histogram_weights[weights_count];
+		int field_size = getSize(params.path + "/DD" + string_pad_left(params.frames[0], 0, 4) + "/data" + string_pad_left(params.frames[0], 0, 4) + ".cpu0000", "Grid00000001");
+		long double field_x[field_size];
+		long double field_y[field_size];
 
-	for (int i = 0; i < params.frames.size(); i++) { // each thread populates the bounds from its own subset
-		std::vector<BinaryTree> histograms_per_frame1D; histograms_per_frame1D.resize(hist_1D_count);
-		std::vector<Quadtree> histograms_per_frame2D; histograms_per_frame2D.resize(hist_2D_count);
-		initialize_histograms(histograms_per_frame1D, histograms_per_frame2D, bounds, params, weights_count);
+		long double stats[stats_size];
+		long double stats_global[stats_size / 2];
+		for (auto & s : stats) s = 0;
+		for (auto & s : stats_global) s = 0;
 
-		int frame = params.frames[i];
-		std::vector<std::pair<std::string, int>> my_grids = distribute_grids(path_to_sim, frame, rank, Nthreads);
-		
-		if (rank == 0) std::cout << "Populating histograms from frame " << frame << std::endl;
-		//std::cout << "Rank " << rank << " populating histograms from frame " << frame << std::endl;
+		// __________________________________________ //
+		// dealing with bounds                        //
+		// at the same time, statistics are extracted //
+		// __________________________________________ //
 
-		for (int j = 0; j < my_grids.size(); j++) {
-			int cpu_number = my_grids[j].second;
-			std::string filename = cpu_filename(path_to_sim, frame, cpu_number);
-			std::string groupname = my_grids[j].first;
+		initialize_bounds(bounds, params);
+		for (int i = 0; i < params.single_frames.size(); i++) { // each thread adjusts its own bounds
+			int frame = params.single_frames[i];
+			std::vector<std::pair<std::string, int>> my_grids = distribute_grids(params.path, frame, rank, Nthreads);
+			
+			if (rank == 0) std::cout << "Adjusting bounds from frame " << frame << std::endl;
 
-			read_from_hdf5(filename, groupname, params.fieldname_x, field_x, field_size);
-			read_from_hdf5(filename, groupname, params.fieldname_y, field_y, field_size);
+			for (auto & s : stats) s = 0; Nstat = 0;
 
-			populate_histograms(histograms_per_frame1D, histograms_per_frame2D, field_x, field_y, field_size, params);
+			for (int j = 0; j < my_grids.size(); j++) {
+				int cpu_number = my_grids[j].second;
+				std::string filename = cpu_filename(params.path, frame, cpu_number);
+				std::string groupname = my_grids[j].first;
 
-			if (rank == 0) std::cout << j+1 << "/" << my_grids.size() << std::endl;
+				read_from_hdf5(filename, groupname, params.fieldname_x, field_x, field_size);
+				read_from_hdf5(filename, groupname, params.fieldname_y, field_y, field_size);
+
+				adjust_bounds(bounds, params, field_x, field_y, field_size);
+				
+				extract_stats(stats, params, field_x, field_y, field_size); Nstat += field_size;
+
+				if (rank == 0) std::cout << j+1 << "/" << my_grids.size() << std::endl;
+			}
+
+			if (rank > 0) {
+				tag = tag_offset + rank;
+				
+				MPI_Send(stats, stats_size, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD);
+				tag_offset += Nthreads; tag = tag_offset + rank;
+				MPI_Send(&Nstat, 1, MPI_LONG_LONG_INT, 0, tag, MPI_COMM_WORLD);
+				tag_offset += Nthreads;
+			}
+
+			if (rank == 0) {				
+				for (int r = 1; r < Nthreads; r++) {
+					tag = tag_offset + r;
+					long double stats_other[stats_size];
+					MPI_Recv(stats_other, stats_size, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+					for (int i = 0; i < stats_size; i++) stats[i] += stats_other[i];
+				}
+
+				tag_offset += Nthreads;
+				
+				for (int r = 1; r < Nthreads; r++) { // the head receives the droneses boundses and adjusts the main bounds
+					tag = tag_offset + r;
+					long long int Nother;
+					//std::cout << "Rank " << rank << " receiving bounds from rank " << r << " with tag " << tag << std::endl;
+					MPI_Recv(&Nother, 1, MPI_LONG_LONG_INT, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+					Nstat += Nother;
+				}
+
+				tag_offset += Nthreads;
+
+				for (int i = 0; i < params.stat_fun.size(); i++) {
+					long double param = (stats[2 * i] - stats[2 * i + 1]) / Nstat;
+					stats_global[i] += param;
+					std::string name = params.stat_name[i];
+					std::ofstream out;
+					out.open(params.path_output + "/" + name + "_frame_" + std::to_string(frame) + ".txt");
+					out << param;
+					out.close();
+				}
+			}
 		}
-		// ______________________________________________
-		// exchanging and saving the per-frame histograms
-		// ______________________________________________
-		if (rank > 0) {
+
+		// _______________________________ //
+		// exchanging the bounds and stats //
+		// _______________________________ //
+
+		if (rank > 0) { // drones send their individual bounds to the head
 			tag = tag_offset + rank;
-			pack_weights(histograms_per_frame1D, histograms_per_frame2D, histogram_weights, params);
-			MPI_Send(histogram_weights, weights_count, MPI_DOUBLE, 0, tag, MPI_COMM_WORLD);
+			//std::cout << "Rank " << rank << " sending bounds with tag " << tag << std::endl;
+			MPI_Send(bounds, bounds_size, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD);
 			tag_offset += Nthreads;
-			//std::cout << "Rank " << rank <<  " sent its histograms with tag " << tag << std::endl;
 		}
 		if (rank == 0) {
-			std::cout << "Collecting single frame histograms..." << frame << std::endl;
-
-			for (int r = 1; r < Nthreads; r++) {
+			for (int r = 1; r < Nthreads; r++) { // the head receives the droneses boundses and adjusts the main bounds
 				tag = tag_offset + r;
-				//double* histogram_weights_other = new double[weights_count];
+				long double bounds_other[bounds_size];
+				//std::cout << "Rank " << rank << " receiving bounds from rank " << r << " with tag " << tag << std::endl;
+				MPI_Recv(bounds_other, bounds_size, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-				MPI_Recv(histogram_weights, weights_count, MPI_DOUBLE, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-				unpack_weights(histograms_per_frame1D, histograms_per_frame2D, histogram_weights, params);
-
-				//delete[] histogram_weights_other;
+				adjust_main_bounds(bounds, bounds_other, params);
 			}
+
 			tag_offset += Nthreads;
 
-			collect_weights(histograms1D, histograms_per_frame1D, histograms2D, histograms_per_frame2D, params);
+			for (int r = 1; r < Nthreads; r++) {
+				tag = tag_offset + r; // the head re-distributes the (now global) bounds to everyone
+				MPI_Send(bounds, bounds_size, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD);
+			}
+
+			tag_offset += Nthreads;
 			
-			// ____________________________________________________________
-			// try if parallelizing the writing process can speed things up
-			// ____________________________________________________________
-			pack_weights(histograms_per_frame1D, histograms_per_frame2D, histogram_weights, params);
-			std::cout << "Sending weights back to drones" << std::endl;
-			for (int r = 1; r < Nthreads; r++) {
-				tag = tag_offset + r;
-				MPI_Send(histogram_weights, weights_count, MPI_DOUBLE, r, tag, MPI_COMM_WORLD);
+			write_bounds(bounds, params);
+
+			for (int i = 0; i < params.stat_fun.size(); i++) {
+				long double param = stats_global[i] / params.frames.size();
+				std::string name = params.stat_name[i];
+				int frame_start = params.single_frames[0]; int frame_end = params.single_frames[params.single_frames.size() - 1];
+				std::ofstream out;
+				out.open(params.path_output + "/" + name + "_frames_" + std::to_string(frame_start) + "-" + std::to_string(frame_end) + ".txt");
+				out << param;
+				out.close();
 			}
-			tag_offset += Nthreads;
-
-			//save_histograms_single_frame(histograms_per_frame1D, histograms_per_frame2D, params, path_output, frame);
 		}
-
-		if (rank > 0) {
+		if (rank > 0) { // everyone receives the global bounds
 			tag = tag_offset + rank;
-			//double* histogram_weights_other = new double[weights_count];
+			MPI_Recv(bounds, bounds_size, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-			MPI_Recv(histogram_weights, weights_count, MPI_DOUBLE, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			unpack_weights_clean(histograms_per_frame1D, histograms_per_frame2D, histogram_weights, params);
-			
 			tag_offset += Nthreads;
+		}
+
+		// _______________________________________ //
+		// the real task - creating the histograms //
+		// _______________________________________ //
+
+		//std::cout << rank << ", bounds: " << bounds[0] << " " << bounds[1] << " " << bounds[2] << " " << bounds[3] << std::endl;
+
+		if ((hist_1D_count > 0) || (hist_2D_count > 0)) {
+
+			int weights_count;
+			std::vector<BinaryTree> histograms1D; histograms1D.resize(hist_1D_count);
+			std::vector<Quadtree> histograms2D; histograms2D.resize(hist_2D_count);
+			initialize_histograms(histograms1D, histograms2D, bounds, params, weights_count);
+
+			if (rank == 0) std::cout << "Size: " << histograms1D.size() << ", " << histograms2D.size() << std::endl;
+
+			long double histogram_weights[weights_count];
+
+			for (int i = 0; i < params.frames.size(); i++) { // each thread populates the bounds from its own subset
+
+				int frame = params.frames[i];
+				std::vector<std::pair<std::string, int>> my_grids = distribute_grids(params.path, frame, rank, Nthreads);
+				
+				if (rank == 0) std::cout << "Populating histograms from frame " << frame << std::endl;
+
+				//std::cout << rank << " ";
+				//for (int j = 0; j < my_grids.size(); j++) std::cout << my_grids[j].second << " ";
+				//std::cout << std::endl;
+
+				for (int j = 0; j < my_grids.size(); j++) {
+					int cpu_number = my_grids[j].second;
+					std::string filename = cpu_filename(params.path, frame, cpu_number);
+					std::string groupname = my_grids[j].first;
+
+					read_from_hdf5(filename, groupname, params.fieldname_x, field_x, field_size);
+					read_from_hdf5(filename, groupname, params.fieldname_y, field_y, field_size);
+
+					populate_histograms(histograms1D, histograms2D, field_x, field_y, field_size, params);
+					
+					//if (histograms2D[0].nodes[93183].weight > 0.5) std::cout << my_grids[j].second << ", " << histograms2D[0].nodes[93183].weight << std::endl;
+
+					if (rank == 0) std::cout << j+1 << "/" << my_grids.size() << std::endl;
+				}
+			}
+
+			//std::cout << rank << ": Preparing to exchange histograms, tag offset = " << tag_offset << ", #weights = " << weights_count << std::endl;
+
+			// ____________________________ //
+			// saving the global histograms //
+			// ____________________________ //
+
+			//std::cout << "rank: " << rank << ", " << histograms2D[0].nodes[93183].weight << ", " << histograms2D[0].nodes[93807].weight << std::endl;
 			
-			// ____________________________________________________________
+			if (rank > 0) {
+				pack_weights(histograms1D, histograms2D, histogram_weights, params);
+
+				tag = tag_offset + rank;
+
+				MPI_Send(histogram_weights, weights_count, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD);
+				tag_offset += Nthreads; tag = tag_offset + rank;
+
+				//std::cout << "Rank " << rank << " sent weights to 0" << std::endl;
+
+				MPI_Recv(histogram_weights, weights_count, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+				unpack_weights_clean(histograms1D, histograms2D, histogram_weights, params);
+
+				//std::cout << "Rank " << rank << " received weights from 0" << std::endl;
+					
+				tag_offset += Nthreads;
+			}
+
+			if (rank == 0) {
+
+				for (int r = 1; r < Nthreads; r++) {
+					tag = tag_offset + r;
+					MPI_Recv(histogram_weights, weights_count, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+					//std::cout << "Rank 0 received weights from " << r << std::endl;
+
+					unpack_weights(histograms1D, histograms2D, histogram_weights, params);
+				}
+					
+				tag_offset += Nthreads;
+				
+				pack_weights(histograms1D, histograms2D, histogram_weights, params);
+
+				for (int r = 1; r < Nthreads; r++) {
+					tag = tag_offset + r;
+					MPI_Send(histogram_weights, weights_count, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD);
+
+					//std::cout << "Rank 0 sent weights to " << r << std::endl;
+				}
+
+				tag_offset += Nthreads;
+			}
+
+			//std::cout << "rank: " << rank << ", " << histograms2D[0].nodes[93183].weight << ", " << histograms2D[0].nodes[93807].weight << std::endl;
+
+			save_histograms(histograms1D, histograms2D, params, rank, Nthreads);
+
+			MPI_Barrier(MPI_COMM_WORLD);
+		}
+	}
+}
+
+void extract_frame_histograms(Parameters params, int rank, int Nthreads) {
+	if (params.extractSingle) {
+		if (rank == 0) std::cout << "Extracting single frames from " << params.path << ", #frames: " << params.single_frames.size() << std::endl;
+		delete_trailing(params.path, '/'); delete_trailing(params.path_output, '/');
+		int tag = 0; int tag_offset = 0;
+		long long int Nstat = 0;
+		int hist_1D_count = 0;
+		int hist_2D_count = 0;
+		if (params.weight.size() == 0) {
+			params.weight.push_back(weight_default); params.postfix_weight = { "V" };
+		}
+		if (params.name_transform_1D.size() == params.transform_1D.size()) {
+			hist_1D_count = params.weight.size() * params.merge_fraction_1D.size() * params.transform_1D.size();
+		}
+		if (params.name_transform_2D.size() == params.transform_2D.size()) {
+			hist_2D_count = params.weight.size() * params.merge_fraction_2D.size() * params.transform_2D.size();
+		}
+
+		int field_size = getSize(params.path + "/DD" + string_pad_left(params.single_frames[0], 0, 4) + "/data" + string_pad_left(params.single_frames[0], 0, 4) + ".cpu0000", "Grid00000001");
+		if (rank == 0) std::cout << "Field count per frame: " << field_size << std::endl;
+		long double field_x[field_size];
+		long double field_y[field_size];
+
+		// _________________________ //
+		// load the global histogram //
+		// _________________________ //
+
+		int weights_count;
+		std::vector<BinaryTree> histograms1D; histograms1D.resize(hist_1D_count);
+		std::vector<Quadtree> histograms2D; histograms2D.resize(hist_2D_count);
+		
+		load_histograms(histograms1D, histograms2D, params, weights_count);
+
+		long double histogram_weights[weights_count];
+
+		for (int i = 0; i < params.single_frames.size(); i++) { // each thread populates the bounds from its own subset
+			int frame = params.single_frames[i];
+			std::vector<std::pair<std::string, int>> my_grids = distribute_grids(params.path, frame, rank, Nthreads);
+
+			clear_histogram_weights(histograms1D, histograms2D);
+			
+			if (rank == 0) std::cout << "Populating histograms from frame " << frame << std::endl;
+
+			for (int j = 0; j < my_grids.size(); j++) {
+				int cpu_number = my_grids[j].second;
+				std::string filename = cpu_filename(params.path, frame, cpu_number);
+				std::string groupname = my_grids[j].first;
+
+				read_from_hdf5(filename, groupname, params.fieldname_x, field_x, field_size);
+				read_from_hdf5(filename, groupname, params.fieldname_y, field_y, field_size);
+			
+				if (rank == 0) std::cout << j+1 << "/" << my_grids.size() << "...";
+
+				populate_histograms_single_frame(histograms1D, histograms2D, field_x, field_y, field_size, params);
+
+				if (rank == 0) std::cout << "done!" << std::endl;
+			}
+
+			// ______________________________________________ //
+			// exchanging and saving the per-frame histograms //
+			// ______________________________________________ //
+
+			if (rank > 0) {
+				tag = tag_offset + rank;
+				pack_weights_single_frame(histograms1D, histograms2D, histogram_weights, params);
+				MPI_Send(histogram_weights, weights_count, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD);
+				tag_offset += Nthreads;
+			}
+			if (rank == 0) {
+				std::cout << "Collecting single frame histograms..." << frame << std::endl;
+
+				for (int r = 1; r < Nthreads; r++) {
+					tag = tag_offset + r;
+
+					MPI_Recv(histogram_weights, weights_count, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+					unpack_weights_single_frame(histograms1D, histograms2D, histogram_weights, params);
+				}
+
+				tag_offset += Nthreads;
+				
+				pack_weights_single_frame(histograms1D, histograms2D, histogram_weights, params);
+
+				std::cout << "Sending weights back to drones" << std::endl;
+				for (int r = 1; r < Nthreads; r++) {
+					tag = tag_offset + r;
+					MPI_Send(histogram_weights, weights_count, MPI_LONG_DOUBLE, r, tag, MPI_COMM_WORLD);
+				}
+				tag_offset += Nthreads;
+			}
+			if (rank > 0) {
+				tag = tag_offset + rank;
+
+				MPI_Recv(histogram_weights, weights_count, MPI_LONG_DOUBLE, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+				unpack_weights_clean_single_frame(histograms1D, histograms2D, histogram_weights, params);
+					
+				tag_offset += Nthreads;
+
+			}
+			// ______________________________________________
 			// every thread saves only a subset of histograms
-			// ____________________________________________________________
+			// ______________________________________________
 
+			save_histograms_single_frame(histograms1D, histograms2D, params, frame, rank, Nthreads);
+
+			MPI_Barrier(MPI_COMM_WORLD);
 		}
-
-		save_histograms_single_frame(histograms_per_frame1D, histograms_per_frame2D, params, path_output, frame, rank, Nthreads);
 	}
-
-	// ____________________________
-	// saving the global histograms
-	// ____________________________
-	if (rank == 0) {
-		pack_weights(histograms1D, histograms2D, histogram_weights, params);
-		for (int r = 1; r < Nthreads; r++) {
-			tag = tag_offset + r;
-			MPI_Send(histogram_weights, weights_count, MPI_DOUBLE, r, tag, MPI_COMM_WORLD);
-		}
-		//save_histograms(histograms1D, histograms2D, params, path_output);
-
-		tag_offset += Nthreads;
-	}
-
-	if (rank > 0) {
-		tag = tag_offset + rank;
-		//double* histogram_weights_other = new double[weights_count];
-
-		MPI_Recv(histogram_weights, weights_count, MPI_DOUBLE, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		unpack_weights_clean(histograms1D, histograms2D, histogram_weights, params);
-			
-		tag_offset += Nthreads;
-	}
-	save_histograms(histograms1D, histograms2D, params, path_output, rank, Nthreads);
 }

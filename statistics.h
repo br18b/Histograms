@@ -49,22 +49,29 @@ void resolve_set(std::set<double> &temp_set, double &accumulator, bool override)
 void extract_stats(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::vector<std::function<double(double, double)>> stat_funs, std::vector<std::pair<std::function<double(std::vector<double>, std::vector<int>)>, std::vector<int>>> stat_aggregate, std::vector<std::string> stat_filenames, std::vector<std::string> stat_aggregate_filenames);
 void extract_stats_parallel(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::vector<std::function<double(double, double)>> stat_funs, std::vector<std::pair<std::function<double(std::vector<double>, std::vector<int>)>, std::vector<int>>> stat_aggregate, std::vector<std::string> stat_filenames, std::vector<std::string> stat_aggregate_filenames, int Nthread, int rank);
 
-void extract_1D_histogram_parallel(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::function<double(double, double)> weight_fun, std::function<double(double, double)> field_1D, int depth, std::vector<std::string> merge_1D, std::string outputname_x, std::string outputpostfix_weight, int rank, int Nthreads);
+//void extract_1D_histogram_parallel(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::function<double(double, double)> weight_fun, std::function<double(double, double)> field_1D, int depth, std::vector<std::string> merge_1D, std::string outputname_x, std::string outputpostfix_weight, int rank, int Nthreads);
 
 void initialize_bounds(double bounds[], const Parameters &params);
-void adjust_bounds(double bounds[], const Parameters &params, double field_x[], double field_y[], int field_size);
-void adjust_main_bounds(double bounds[], double bounds_other[], const Parameters &params);
-void write_bounds(double bounds[], const Parameters &params);
-void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double bounds[], const Parameters &params, int &weights_count);
-void populate_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double field_x[], double field_y[], int field_size, const Parameters &params);
+void extract_stats(long double pars[], const Parameters &params, long double field_x[], long double field_y[], int field_size);
+void adjust_bounds(long double bounds[], const Parameters &params, long double field_x[], long double field_y[], int field_size);
+void adjust_main_bounds(long double bounds[], long double bounds_other[], const Parameters &params);
+void write_bounds(long double bounds[], const Parameters &params);
+void initialize_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double bounds[], const Parameters &params, int &weights_count);
+void initialize_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double bounds[], const Parameters &params, int &weights_count);
+void populate_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double field_x[], long double field_y[], int field_size, const Parameters &params);
 void pack_weights(const std::vector<BinaryTree> &histograms1D, const std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params);
-void unpack_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params);
-void unpack_weights_clean(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, double histogram_weights[], const Parameters &params);
+void pack_weights_single_frame(const std::vector<BinaryTree> &histograms1D, const std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params);
+void unpack_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params);
+void unpack_weights_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params);
+void unpack_weights_clean(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params);
+void unpack_weights_clean_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, long double histogram_weights[], const Parameters &params);
 void collect_weights(std::vector<BinaryTree> &histograms1D, const std::vector<BinaryTree> &histograms1D_other, std::vector<Quadtree> &histograms2D, const std::vector<Quadtree> &histograms2D_other, const Parameters &params);
-void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int frame);
-void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int frame, int rank, int Nthreads);
-void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output);
-void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, std::string path_output, int rank, int Nthreads);
-void extract_histograms(std::string path_to_sim, std::string path_output, Parameters params, int rank, int Nthreads);
+void save_histograms_single_frame(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, int frame, int rank, int Nthreads);
+void save_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, int rank, int Nthreads);
+void load_histograms(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D, const Parameters &params, int &weights_count);
+void clear_histogram_weights(std::vector<BinaryTree> &histograms1D, std::vector<Quadtree> &histograms2D);
+
+void extract_histograms(Parameters params, int rank, int Nthreads);
+void extract_frame_histograms(Parameters params, int rank, int Nthreads);
 
 #endif

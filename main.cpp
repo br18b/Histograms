@@ -13,54 +13,6 @@
 #include "statistics.h"
 #include "read_binary.h"
 
-//using namespace H5;
-/*
-void extract_fields(std::string path_to_sim, std::string path_output, std::vector<int> frames, std::string fieldname_x, std::string fieldname_y, std::vector< std::function<double(double, double)>> weight_fun, std::vector<std::function<double(double, double)>> field_1D, std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> field_2D, std::vector<std::string> scale_1D, std::vector<std::pair<std::string, std::string>> scale_2D, std::vector<int> subdiv_1D, std::vector<int> subdiv_2D, std::vector<std::string> merge_1D, std::vector<std::string> merge_2D, std::vector<std::string> outputname_x, std::vector<std::string> outputname_z, std::vector<std::string> outputpostfix_weight) {
-	std::vector<BinaryTree> data_1D;
-	std::vector<Quadtree> data_2D;
-	data_1D.resize(std::max(1, (int)weight_fun.size()) * field_1D.size());
-	data_2D.resize(std::max(1, (int)weight_fun.size()) * field_2D.size());
-	initialize(path_to_sim, frames, fieldname_x, fieldname_y, field_1D, field_2D, scale_1D, scale_2D, data_1D, data_2D);
-	for (int w = 0; w < weight_fun.size(); w++) {
-		for (int k = 0; k < subdiv_1D.size(); k++) {
-			data_1D[w * subdiv_1D.size() + k].uniform_divide(subdiv_1D[k]);
-		}
-		for (int k = 0; k < subdiv_2D.size(); k++) {
-			data_2D[w * subdiv_2D.size() + k].uniform_divide(subdiv_2D[k]);
-		}
-	}
-	load_points(path_to_sim, frames, fieldname_x, fieldname_y, weight_fun, field_1D, field_2D, data_1D, data_2D);
-	for (int w = 0; w < weight_fun.size(); w++) {
-		for (int k = 0; k < field_1D.size(); k++) {
-			for (int m = 0; m < merge_1D.size(); m++) {
-				data_1D[w * field_1D.size() + k].merge(std::stod(merge_1D[m]));
-				if (frames.front() > frames.back()) {
-					data_1D[w * field_1D.size() + k].save_structure(path_output, outputname_x[k] + "_bintree_frames_" + std::to_string(frames.front()) + "-" + std::to_string(frames.back()) + "_" + outputpostfix_weight[w] + "_" + merge_1D[m] + ".txt");
-					data_1D[w * field_1D.size() + k].save_leaves(path_output, outputname_x[k] + "_bins_frames_" + std::to_string(frames.front()) + "-" + std::to_string(frames.back()) + "_" + outputpostfix_weight[w] + "_" + merge_1D[m] + ".txt");
-					data_1D[w * field_1D.size() + k].prob_to_pdf(path_output, outputname_x[k] + "_CDF_frames_" + std::to_string(frames.front()) + "-" + std::to_string(frames.back()) + "_" + outputpostfix_weight[w] + "_" + merge_1D[m] + ".txt");
-				}
-				else {
-				}
-			}
-		}
-		for (int k = 0; k < field_2D.size(); k++) {
-			for (int m = 0; m < merge_2D.size(); m++) {
-				data_2D[w * field_2D.size() + k].merge(std::stod(merge_2D[m]));
-				if (frames.front() > frames.back()) {
-					data_2D[w * field_2D.size() + k].save_structure(path_output, outputname_z[k] + "_bintree_frames_" + std::to_string(frames.front()) + "-" + std::to_string(frames.back()) + "_" + outputpostfix_weight[w] + "_" + merge_2D[m] + ".txt");
-					data_2D[w * field_2D.size() + k].save_leaves(path_output, outputname_z[k] + "_bins_frames_" + std::to_string(frames.front()) + "-" + std::to_string(frames.back()) + "_" + outputpostfix_weight[w] + "_" + merge_2D[m] + ".txt");
-					data_2D[w * field_2D.size() + k].prob_to_pdf(path_output, outputname_z[k] + "_CDF_frames_" + std::to_string(frames.front()) + "-" + std::to_string(frames.back()) + "_" + outputpostfix_weight[w] + "_" + merge_2D[m] + ".txt");
-				}
-				else {
-					data_2D[w * field_2D.size() + k].save_structure(path_output, outputname_z[k] + "_bintree_frame_" + std::to_string(frames.front()) + "_" + outputpostfix_weight[w] + "_" + merge_2D[m] + ".txt");
-					data_2D[w * field_2D.size() + k].save_leaves(path_output, outputname_z[k] + "_bins_frame_" + std::to_string(frames.front()) + "_" + outputpostfix_weight[w] + "_" + merge_2D[m] + ".txt");
-					data_2D[w * field_2D.size() + k].prob_to_pdf(path_output, outputname_z[k] + "_CDF_frame_" + std::to_string(frames.front()) + "_" + outputpostfix_weight[w] + "_" + merge_2D[m] + ".txt");
-				}
-			}
-		}
-	}
-}
-*/
 std::function<double(double, double, double)> magnitude = [](double x, double y, double z) {
 	return std::sqrt(x * x + y * y + z * z);
 };
@@ -107,27 +59,50 @@ std::function<double(double, double)> weight_kinetic_from_s = [](double x, doubl
 	return 0.5 * std::exp(x) * y * y;
 };
 
-std::function<double(double, double)> fun_logrho_from_rho = [](double x, double y) {
+std::function<double(double, double)> logX = [](double x, double y) {
 	return std::log(x);
 };
 
-std::function<double(double, double)> fun_logrho_from_s = [](double x, double y) {
+std::function<double(double, double)> log2X = [](double x, double y) {
+	double foo = std::log(x);
+	return foo * foo;
+};
+
+std::function<double(double, double)> idX = [](double x, double y) {
 	return x;
 };
 
-std::function<double(double, double)> fun_rho_from_rho = [](double x, double y) {
-	return x;
+std::function<double(double, double)> x2 = [](double x, double y) {
+	return x * x;
 };
 
-std::function<double(double, double)> fun_absv = [](double x, double y) {
+std::function<double(double, double)> logY = [](double x, double y) {
+	return std::log(x);
+};
+
+std::function<double(double, double)> log2Y = [](double x, double y) {
+	double foo = std::log(y);
+	return std::log(x);
+};
+
+std::function<double(double, double)> idY = [](double x, double y) {
 	return y;
 };
 
-std::function<double(double, double)> fun_Helmholtz_from_rho = [](double x, double y) {
+std::function<double(double, double)> y2 = [](double x, double y) {
+	return y * y;
+};
+
+std::function<double(double, double)> Helmholtz = [](double x, double y) {
 	return x * std::log(x);
 };
 
-std::function<double(double, double)> fun_Helmholtz_from_s = [](double x, double y) {
+std::function<double(double, double)> Helmholtz2 = [](double x, double y) {
+	double foo = x * std::log(x);
+	return foo * foo;
+};
+
+std::function<double(double, double)> Helmholtz_s = [](double x, double y) {
 	return x * std::exp(x);
 };
 
@@ -178,11 +153,16 @@ std::function<double(double, double)> fun_shiftlog_Helmholtz_from_s = [](double 
 	return std::log(res);
 };
 
-std::function<double(double, double)> fun_kinetic_from_rho = [](double x, double y) {
+std::function<double(double, double)> EK = [](double x, double y) {
 	return 0.5 * x * y * y;
 };
 
-std::function<double(double, double)> fun_kinetic_from_s = [](double x, double y) {
+std::function<double(double, double)> kinetic2 = [](double x, double y) {
+	double foo = 0.5 * x * y * y;
+	return foo * foo;
+};
+
+std::function<double(double, double)> kinetic_s = [](double x, double y) {
 	return 0.5 * std::exp(x) * y * y;
 };
 
@@ -198,72 +178,27 @@ std::function<double(double, double)> fun_density_from_rho = [](double x, double
 	return x;
 };
 
-std::function<double(double, double)> fun_density_from_s = [](double x, double y) {
-	return std::exp(x);
-};
-
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) { // mpirun -np 64 main
 	int Nthreads, rank;
+	std::string param_filename;
+	Parameters params;
 	MPI_Init(&argc, &argv);
-    //MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &Nthread);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &Nthreads);
-	if (rank == 0) std::cout << "Nthreads = " << Nthreads << std::endl;
-	//std::cout << "rank = " << rank << std::endl;
-	//return 0;
-	std::string path = "/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0_mach12.4/";
-	std::string path_out = path + "stats";
-	std::string filename = "DD0052/data0052.cpu0000";
-	std::string ifile = path + filename;
-	std::vector<std::function<double(double, double)>> stats = { density, logrho, rho_logrho, kin_logrho, logrho2, rho_logrho2, kin_logrho2, v2V, v2M, v2E, kinetic, thermal, fun_sv2, fun_s2v2, fun_sv4, fun_s2v4 };
-	Parameters params;
-	int index_rho = 0;
-	int index_s = 1;
-	int index_sM = 2;
-	int index_sE = 3;
-	int index_s2 = 4;
-	int index_s2M = 5;
-	int index_s2E = 6;
-	int index_v2 = 7;
-	int index_v2M = 8;
-	int index_v2E = 9;
-	int index_kin = 10;
-	
-	//auto foo = read_from_hdf5("/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0_mach12.4/DD0052/data0052.cpu0000", "Grid00000001", "density");
-	//return 0;
-/*
-	extract_stats(path, path_out, { 52 }, stats,
-		{ { M1DV, { index_v2 } }, { M1DM, { index_v2M, index_rho } }, { M1DE, { index_v2E, index_kin } },
-		{ muV, { index_s } }, {muM, { index_rho, index_sM } }, { muE, { index_kin, index_sE } },
-		{ sigmaV, { index_s, index_s2 } }, {sigmaM, { index_rho, index_sM, index_s2M } }, 
-		{ sigmaE, { index_kin, index_sE, index_s2E } } }, { "rho", "sV", "sM", "sE", "s2V", "s2M", "s2E", "v2V", "v2M", "v2E", "kinetic", "thermal", "sv2", "s2v2", "sv4", "s2v4" },
-		{ "M1DV", "M1DM", "M1DE", "muV", "muM", "muE", "sigmaV", "sigmaM", "sigmaE" });
-*/
-	//extract_stats_parallel(path, path_out, { 52 }, { density }, { }, { "rho" }, { }, Nthreads, rank);
-	//extract_fields(path, path_out, { 52 }, "rho", "v", { weight_volume, weight_mass_from_rho, weight_kinetic_from_rho }, { fun_absv, fun_logrho_from_rho, fun_symlog_Helmholtz_from_rho, fun_log_kinetic_from_rho }, { {fun_logrho_from_rho, fun_absv}, {fun_symlog_Helmholtz_from_rho, fun_log_kinetic_from_rho} }, { "lin" ,"lin" ,"lin" ,"lin" }, { {"lin" ,"lin"} ,{"lin" ,"lin"} }, { 10,10,10,10 }, { 10,10 }, { "1e-4", "1e-3", "1e-2" }, { "1e-7", "1e-6", "1e-5", "1e-4", "1e-3", "1e-2" }, { "absv","logrho","Helmholtz","kinetic" }, { "logrho_absv","Helmholtz_kinetic" }, { "V", "M", "E" });
-	//extract_1D_histogram_parallel(path, path_out, { 52 }, "rho", "absv", weight_volume, fun_logrho_from_rho, 10, { "1e-4", "1e-3", "1e-2"}, "logrho_" + std::to_string(Nthreads), "V", rank, Nthreads);
+	if (rank == 0) {
+		std::cout << "Program launched with " << Nthreads;
+		if (Nthreads == 1) std::cout << " thread" << std::endl;
+		else std::cout << " threads" << std::endl;
+	}
+	if (argc > 1) param_filename = argv[1];
+	if (rank == 0) std::cout << "Initializing parameters (input file " << param_filename << ")" << std::endl;
+	params.initialize(param_filename);
 
-	params.initialize();
-	params.addFrame(52);
-	params.setFieldnames("rho", "absv");
-	
-	//params.add1Dtransform(fun_logrho_from_rho, "logrho_" + std::to_string(Nthreads), 10);
-	//params.add1Dtransform(fun_absv, "absv_" + std::to_string(Nthreads), 10);
-	//params.add1Dtransform(fun_shiftlog_Helmholtz_from_rho, "Helmholtz_" + std::to_string(Nthreads), 10);
-	//params.add1Dtransform(fun_log_kinetic_from_rho, "kinetic_" + std::to_string(Nthreads), 10);
-	
-	//params.add2Dtransform(fun_logrho_from_rho, fun_absv, "logrho_absv_" + std::to_string(Nthreads), 10);
-	params.add2Dtransform(fun_shiftlog_Helmholtz_from_rho, fun_log_kinetic_from_rho, "Helmholtz_kinetic_" + std::to_string(Nthreads), 10);
-	
-	params.setMergeFractions({"1e-4", "1e-3", "1e-2"},{"1e-7", "1e-6", "1e-5", "1e-4"});
+		extract_histograms(params, rank, Nthreads);
 
-	params.addWeight(weight_volume, "V");
-	//params.addWeight(weight_mass_from_rho, "M");
-	//params.addWeight(weight_kinetic_from_rho, "E");
-	
 	params.saveTree = false;
-
-	extract_histograms(path, path_out, params, rank, Nthreads);
+	
+	extract_frame_histograms(params, rank, Nthreads);
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	return 0;

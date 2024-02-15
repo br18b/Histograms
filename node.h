@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <iterator>
 #include <cmath>
 #include "read_binary.h"
 #include "string_pad.h"
@@ -25,10 +26,23 @@ double natural_log(double x);
 double dec_log(double x);
 double lin(double x);
 
+int parse_token(std::vector<std::string> &temp, int index, const char &delimiter);
+std::vector<std::string> parse_line(std::string line, std::vector<char> delimiters);
+std::stringstream stream_line(std::string line, std::vector<char> delimiters);
+
+void parse_function(std::function<double(double, double)> &func, const std::string &name);
+std::function<double(double, double)> parse_function(const std::string &name);
+
 class Parameters {
 public:
+	std::string path, path_output;
 	std::vector<int> frames;
+	std::vector<int> single_frames;
 	std::string fieldname_x, fieldname_y;
+
+	std::vector<std::function<double(double, double)>> stat_fun;
+	std::vector<std::string> stat_name;
+
 	std::vector<std::function<double(double, double)>> transform_1D;
 	std::vector<std::string> name_transform_1D;
 	std::vector<std::pair<std::function<double(double, double)>, std::function<double(double, double)>>> transform_2D;
@@ -39,11 +53,17 @@ public:
 	std::vector<std::string> merge_fraction_2D;
 	std::vector<int> initial_depth_1D;
 	std::vector<int> initial_depth_2D;
-	bool saveBins, saveCDF, saveTree;
+	bool saveBins, saveCDF, saveTree, saveIndividualFrames, extractGlobal, extractSingle;
 	void initialize();
+	void initialize(std::string path);
 	void addFrame(int f);
+	void addSingleFrame(int f);
 	void setFrames(int start, int end);
+	void setSingleFrames(int start, int end);
 	void setFieldnames(std::string fname_x, std::string fname_y);
+	
+	void addStat(std::function<double(double, double)> function, std::string name);
+
 	void add1Dtransform(std::function<double(double, double)> function, std::string name, int initial_depth);
 	void add2Dtransform(std::pair<std::function<double(double, double)>, std::function<double(double, double)>> function, std::string name, int initial_depth);
 	void add2Dtransform(std::function<double(double, double)> fun_x, std::function<double(double, double)> fun_y, std::string name, int initial_depth);
@@ -134,7 +154,8 @@ public:
 class Node1D {
 public:
 	int depth = 0;
-	double weight = 0;
+	long double weight = 0;
+	//std::multiset<long double> partial_sum;
 	int child[2] = { -1,-1 };
 	int parent = -1;
 };
@@ -142,7 +163,8 @@ public:
 class Node2D {
 public:
 	int depth = 0;
-	double weight = 0;
+	long double weight = 0;
+	//std::multiset<long double> partial_sum;
 	int child[4] = { -1,-1,-1,-1 };
 	int parent = -1;
 };
@@ -150,7 +172,8 @@ public:
 class Node3D {
 public:
 	int depth = 0;
-	double weight = 0;
+	long double weight = 0;
+	//std::multiset<long double> partial_sum;
 	int child[8] = { -1,-1,-1,-1,-1,-1,-1,-1 };
 	int parent = -1;
 };
@@ -168,6 +191,7 @@ private:
 	void subdivide(int parent_index);
 	void cleanup();
 	void weigh(int node_index, double x_scaled, double current_depth);
+	void write_node(std::ofstream& output, int node_index);
 	void write_node(std::ofstream& output, int node_index, const double& total_weight);
 	void write_leaf(std::ofstream& output, int node_index, double x_scaled, double current_depth, const double& total_weight);
 	void traverse_nodes(std::map<double, double>& pdf_weight, int node_index, double x_scaled, double current_depth, const double& total_weight);
@@ -199,7 +223,7 @@ public:
 	void load_points(const std::vector<double> &pts, const std::vector<double> &wt);
 	void load_points(const std::vector<double> &x, const std::vector<double> &y, std::function<double(double, double)> &fun);
 	void load_points(const const std::vector<double> &x, const const std::vector<double> &y, std::function<double(double, double)> &fun, std::function<double(double, double)> &fun_wt);
-	void load_points(double x[], double y[], const std::function<double(double, double)> &fun, const std::function<double(double, double)> &fun_wt, int size);
+	void load_points(long double x[], long double y[], const std::function<double(double, double)> &fun, const std::function<double(double, double)> &fun_wt, int size);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_weight);
 
@@ -214,6 +238,7 @@ public:
 
 	void save_structure(std::string path, std::string prefix, std::string filename);
 	void save_structure(std::string path_out, std::string filename);
+	void save_structure(std::string path_out, std::string filename, bool normalize);
 
 	void save_leaves(std::string path, std::string prefix, std::string filename);
 	void save_leaves(std::string path_out, std::string filename);
@@ -222,6 +247,7 @@ public:
 	void prob_to_pdf(std::string path_out, std::string filename);
 
 	void load_tree(std::string path, std::string prefix, std::string filename, std::string scale);
+	void load_tree(std::string path, std::string filename);
 
 	void adjust_bounds(double& XMIN, double& XMAX, double threshold_probability, std::string path, std::string prefix, std::vector<std::string> filename_x);
 
@@ -236,6 +262,7 @@ private:
 	void output(std::ostream& os, int i, int dep, double x, double y, double dx, double dy);
 	void cleanup();
 	void weigh(int node_index, double x_scaled, double y_scaled, double current_depth);
+	void write_node(std::ofstream& output, int node_index);
 	void write_node(std::ofstream& output, int node_index, const double& total_weight);
 	void write_leaf(std::ofstream& output, int node_index, double x_scaled, double y_scaled, double current_depth, const double& total_weight);
 	void adjust_bounds_x(double& XMIN, double& XMAX, double threshold_probability, std::string path, std::string prefix, std::vector<std::string> filename_x);
@@ -275,7 +302,7 @@ public:
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_weight);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_z, std::function<double(double, double, double)> fun1, std::function<double(double, double, double)> fun2, std::function<bool(double, double, double)> cond);
 	void load_points(std::string path, std::string prefix, std::vector<std::string> filename_x, std::vector<std::string> filename_y, std::vector<std::string> filename_z, std::function<double(double, double, double)> fun1, std::function<double(double, double, double)> fun2, std::function<bool(double, double, double, double, double)> cond, double cond_param1, double cond_param2);
-	void load_points(double x[], double y[], const std::function<double(double, double)> &fun_x, const std::function<double(double, double)> &fun_y, const std::function<double(double, double)> &fun_wt, int size);
+	void load_points(long double x[], long double y[], const std::function<double(double, double)> &fun_x, const std::function<double(double, double)> &fun_y, const std::function<double(double, double)> &fun_wt, int size);
 
 	double count_total(int i);
 	double count_total();
@@ -288,8 +315,8 @@ public:
 
 	void weigh();
 
-	void save_structure(std::string path, std::string prefix, std::string filename);
 	void save_structure(std::string path_out, std::string filename);
+	void save_structure(std::string path_out, std::string filename, bool normalize);
 
 	void save_leaves(std::string path, std::string prefix, std::string filename);
 	void save_leaves(std::string path_out, std::string filename);
@@ -306,6 +333,7 @@ public:
 	void center_and_dxdy(int node_index, double& center_x, double& center_y, double& dxdy);
 
 	void load_tree(std::string path, std::string prefix, std::string filename, std::string scale_X, std::string scale_Y);
+	void load_tree(std::string path, std::string filename);
 
 	double collect_weight_X(double XMIN, double XMAX, std::vector<std::pair<std::pair<double, double>, double>>& pdf_X);
 	double collect_weight_Y(double YMIN, double YMAX, std::vector<std::pair<std::pair<double, double>, double>>& pdf_Y);
@@ -361,6 +389,7 @@ private:
 	void subdivide(int parent_index);
 	void cleanup();
 	void weigh(int node_index, double x_scaled, double y_scaled, double z_scaled, double current_depth);
+	void write_node(std::ofstream& output, int node_index);
 	void write_node(std::ofstream& output, int node_index, const double& total_weight);
 	void write_leaf(std::ofstream& output, int node_index, double x_scaled, double y_scaled, double z_scaled, double current_depth, const double& total_weight);
 	//void adjust_bounds_x(double& XMIN, double& XMAX, double threshold_probability, std::string path, std::string prefix, std::vector<std::string> filename_x);
@@ -415,6 +444,7 @@ public:
 
 	void save_structure(std::string path, std::string prefix, std::string filename);
 	void save_structure(std::string path_out, std::string filename);
+	void save_structure(std::string path_out, std::string filename, bool normalize);
 
 	void save_leaves(std::string path, std::string prefix, std::string filename);
 	void save_leaves(std::string path_out, std::string filename);

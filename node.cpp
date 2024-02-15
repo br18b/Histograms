@@ -26,8 +26,627 @@ template <typename T> int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
+int parse_token(std::vector<std::string> &temp, int index, const char &delimiter) {
+    std::stringstream ss(temp[index]); temp.erase(temp.begin()+index);
+    std::vector<std::string> replacement;
+    std::string s;
+    while (getline(ss, s, delimiter)) {
+        replacement.push_back(s);
+    }
+    temp.insert(temp.begin()+index,replacement.begin(), replacement.end());
+    return replacement.size();
+}
+
+std::vector<std::string> parse_line(std::string line, std::vector<char> delimiters) {
+    std::vector<std::string> res;
+    std::stringstream ss(line);
+    res.push_back(line);
+    for (auto &d : delimiters) {
+        int index = 0;
+        while (index < res.size()) {
+            index += parse_token(res, index, d);
+        }
+    }
+    return res;
+}
+
+std::stringstream stream_line(std::string line, std::vector<char> delimiters) {
+    std::stringstream ss;
+    auto parsed = parse_line(line, delimiters);
+    std::copy(parsed.begin(), parsed.end(),std::ostream_iterator<std::string>(ss,"\n"));
+    return ss;
+}
+
+void parse_function(std::function<double(double, double)> &func, const std::string &name) {
+    func = [](double x, double y) {return x;}; // default
+    if ((name == "V") || (name == "volume")) {
+        func = [](double x, double y) {return 1;};
+    }
+    else if ((name == "idX") || (name == "idx") || (name == "rho") || (name == "M") || (name == "mass")) {
+        func = [](double x, double y) {return x;};
+    }
+    else if ((name == "X2") || (name == "x2") || (name == "rho2")) {
+        func = [](double x, double y) {return x * x;};
+    }
+    else if ((name == "X3") || (name == "x3") || (name == "rho3")) {
+        func = [](double x, double y) {return x * x * x;};
+    }
+    else if ((name == "X4") || (name == "x4") || (name == "rho4")) {
+        func = [](double x, double y) {return x * x * x * x;};
+    }
+    else if ((name == "logX") || (name == "logx") || (name == "logrho") || (name == "s") || (name == "mu") || (name == "muV")) {
+        func = [](double x, double y) {return std::log(x);};
+    }
+    else if ((name == "log2X") || (name == "log2x") || (name == "logrho2") || (name == "s2") || (name == "mu2") || (name == "mu2V")) {
+        func = [](double x, double y) {
+            double foo = std::log(x);
+            return foo * foo;
+        };
+    }
+    else if ((name == "idY") || (name == "idy") || (name == "absv") || (name == "v")) {
+        func = [](double x, double y) {return y;};
+    }
+    else if (name == "sv") {
+        func = [](double x, double y) {return std::log(x) * y;};
+    }
+    else if ((name == "Y2") || (name == "y2") || (name == "absv2") || (name == "v2")) {
+        func = [](double x, double y) {return y * y;};
+    }
+    else if ((name == "Y3") || (name == "y3") || (name == "absv3") || (name == "v3")) {
+        func = [](double x, double y) {return y * y * y;};
+    }
+    else if ((name == "Y4") || (name == "y4") || (name == "absv4") || (name == "v4")) {
+        func = [](double x, double y) {return y * y * y * y;};
+    }
+    else if ((name == "logY") || (name == "logy")) {
+        func = [](double x, double y) {return std::log(y);};
+    }
+    else if ((name == "log2Y") || (name == "log2y")) {
+        func = [](double x, double y) {
+            double foo = std::log(y);
+            return foo * foo;
+        };
+    }
+    else if ((name == "EK") || (name == "KE") || (name == "E") || (name == "kinetic")) {
+        func = [](double x, double y) {return 0.5 * x * y * y;};
+    }
+    else if ((name == "EK2") || (name == "KE2") || (name == "E2") || (name == "kinetic2")) {
+        func = [](double x, double y) {
+            double kinetic = 0.5 * x * y * y;
+            return kinetic * kinetic;
+        };
+    }
+    else if ((name == "kinetic_log") || (name == "log_kinetic") || (name == "EKlog") || (name == "logEK")) {
+        func = [](double x, double y) {return std::log(0.5 * x * y * y);};
+    }
+    else if ((name == "ET") || (name == "TE") || (name == "helmholtz") || (name == "Helmholtz")) {
+        func = [](double x, double y) {return x * std::log(x);};
+    }
+    else if ((name == "ET2") || (name == "TE2") || (name == "helmholtz2") || (name == "Helmholtz2")) {
+        func = [](double x, double y) {
+            double Helmholtz = x * std::log(x);
+            return Helmholtz * Helmholtz;
+        };
+    }
+    else if ((name == "Helmholtz_shiftlog") || (name == "shiftlog_Helmholtz") || (name == "helmholtz_shiftlog") || (name == "shiftlog_helmholtz") || (name == "Helmholtz_slog") || (name == "slog_Helmholtz")) {
+        func = [](double x, double y) {
+            double res;
+            if ((x > 0.367512) && (x < 0.368248)) {
+                x = 0.3068528194400547 + 2 * std::log(x + 0.3678794411714423 + 1E-16);
+            }
+            else x = 0.3678794411714424 + x * std::log(x);
+            return std::log(x);
+        };
+    }
+    else if ((name == "logEK") || (name == "ke")) {
+        func = [](double x, double y) {
+            double EK = 0.5* x * y * y;
+            return std::log(EK);
+        };
+    }
+    else if ((name == "logEK2") || (name == "ke2")) {
+        func = [](double x, double y) {
+            double EK = 0.5* x * y * y;
+            double logEK = std::log(EK);
+            return logEK * logEK;
+        };
+    }
+    else if ((name == "logET") || (name == "te")) {
+        func = [](double x, double y) {
+            double res;
+            if ((x > 0.367512) && (x < 0.368248)) {
+                x = 0.3068528194400547 + 2 * std::log(x + 0.3678794411714423 + 1E-16);
+            }
+            else x = 0.3678794411714424 + x * std::log(x);
+            return 1 + std::log(x);
+        };
+    }
+    else if ((name == "logET2") || (name == "te2")) {
+        func = [](double x, double y) {
+            double res;
+            if ((x > 0.367512) && (x < 0.368248)) {
+                x = 0.3068528194400547 + 2 * std::log(x + 0.3678794411714423 + 1E-16);
+            }
+            else x = 0.3678794411714424 + x * std::log(x);
+            double log = 1 + std::log(x);
+            return log * log;
+        };
+    }
+    else if ((name == "EKtimesET") || (name == "EKET")) {
+        double EK = 0.5 * x * y * y;
+        double ET = x * std::log(x);
+        return EK * ET;
+    }
+    else if ((name == "logEKtimesET") || (name == "eket")) {
+        double EK = 0.5 * x * y * y;
+        double ET = x * std::log(x);
+        return std::log(EK * ET);
+    }
+    else if (name == "sv2") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return s*std::pow(y,2);
+        };
+    }
+    else if (name == "sv4") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return s*std::pow(y,4);
+        };
+    }
+    else if (name == "sv6") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return s*std::pow(y,6);
+        };
+    }
+    else if (name == "sv8") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return s*std::pow(y,8);
+        };
+    }
+    else if (name == "sv10") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return s*std::pow(y,10);
+        };
+    }
+    else if (name == "s2v2") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,2)*std::pow(y,2);
+        };
+    }
+    else if (name == "s2v4") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,2)*std::pow(y,4);
+        };
+    }
+    else if (name == "s2v6") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            double v2 = y * y;
+            return std::pow(s,2)*std::pow(y,6);
+        };
+    }
+    else if (name == "s2v8") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            double v2 = y * y;
+            return std::pow(s,2)*std::pow(y,8);
+        };
+    }
+    else if (name == "s2v10") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            double v2 = y * y;
+            return std::pow(s,2)*std::pow(y,10);
+        };
+    }
+    else if (name == "s3v2") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,3)*std::pow(y,2);
+        };
+    }
+    else if (name == "s3v4") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,3)*std::pow(y,4);
+        };
+    }
+    else if (name == "s3v6") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,3)*std::pow(y,6);
+        };
+    }
+    else if (name == "s3v8") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,3)*std::pow(y,8);
+        };
+    }
+    else if (name == "s3v10") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,3)*std::pow(y,10);
+        };
+    }
+    else if (name == "s4") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,4);
+        };
+    }
+    else if (name == "s4v2") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,4)*std::pow(y,2);
+        };
+    }
+    else if (name == "s4v4") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,4)*std::pow(y,4);
+        };
+    }
+    else if (name == "s4v6") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,4)*std::pow(y,6);
+        };
+    }
+    else if (name == "s4v8") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,4)*std::pow(y,8);
+        };
+    }
+    else if (name == "s4v10") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,4)*std::pow(y,10);
+        };
+    }
+    else if (name == "s5") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,5);
+        };
+    }
+    else if (name == "s5v2") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,5)*std::pow(y,2);
+        };
+    }
+    else if (name == "s5v4") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,5)*std::pow(y,4);
+        };
+    }
+    else if (name == "s5v6") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,5)*std::pow(y,6);
+        };
+    }
+    else if (name == "s5v8") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,5)*std::pow(y,8);
+        };
+    }
+    else if (name == "s5v10") {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return std::pow(s,5)*std::pow(y,10);
+        };
+    }
+    else if ((name == "rhov") || (name == "vM")) {
+	func = [](double x, double y) {return x * y;};
+    }
+    else if ((name == "rhov2") || (name == "v2M")) {
+        func = [](double x, double y) {return x * y * y;};
+    }
+    else if ((name == "rhov3") || (name == "v3M")) {
+        func = [](double x, double y) {return x * y * y * y;};
+    }
+    else if (name == "rho2v2") {
+        func = [](double x, double y) {return x * x * y * y;};
+    }
+    else if (name == "rho3v2") {
+        func = [](double x, double y) {return x * x * x * y * y;};
+    }
+    else if (name == "rhov4") {
+        func = [](double x, double y) {return x * y * y * y * y;};
+    }
+    else if (name == "rho2v4") {
+        func = [](double x, double y) {return x * x * y * y * y * y;};
+    }
+    else if (name == "rho3v4") {
+        func = [](double x, double y) {return x * x * x * y * y * y * y;};
+    }
+    else if ((name == "rhologrho") || (name == "muM") || (name == "Mmu") || (name == "rhos") || (name == "srho")) {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return x * s;
+        };
+    }
+    else if ((name == "rhologrho2") || (name == "mu2M") || (name == "Mmu2") || (name == "rhos2") || (name == "s2rho")) {
+        func = [](double x, double y) {
+            double s = std::log(x);
+            return x * s * s;
+        };
+    }
+    else if ((name == "Elogrho") || (name == "logrhoE") || (name == "muE") || (name == "Emu") || (name == "Es") || (name == "sE")) {
+        func = [](double x, double y) {
+            double KE = 0.5 * x * y * y;
+            double s = std::log(x);
+            return KE * s;
+        };
+    }
+    else if ((name == "Elogrho2") || (name == "logrho2E") || (name == "mu2E") || (name == "Emu2") || (name == "Es2") || (name == "s2E")) {
+        func = [](double x, double y) {
+            double KE = 0.5 * x * y * y;
+            double s = std::log(x);
+            return KE * s * s;
+        };
+    }
+    else if ((name == "Erho") || (name == "rhoE") || (name == "xE") || (name == "Ex") || (name == "KErho") || (name == "rhoKE")) {
+        func = [](double x, double y) {
+            double KE = 0.5 * x * y * y;
+            return KE * x;
+        };
+    }
+    else if ((name == "Erho2") || (name == "rho2E") || (name == "x2E") || (name == "Ex2") || (name == "KErho2") || (name == "rho2KE")) {
+        func = [](double x, double y) {
+            double KE = 0.5 * x * y * y;
+            return KE * x * x;
+        };
+    }
+}
+
+std::function<double(double, double)> parse_function(const std::string &name) {
+    std::function<double(double, double)> res;
+    parse_function(res, name);
+    return res;
+}
+
+void Parameters::initialize(std::string parameter_path) {
+    std::vector<char> delimiters = { ' ', ',', ':', ';', '|', '(', ')' };
+    std::string line;
+    std::fstream input(parameter_path);
+    
+    std::string fieldnameX = "rho"; std::string fieldnameY = "absv";
+
+    std::vector<std::string> stats, statNames;
+    std::vector<std::string> hist1D, hist1DNames;
+    std::vector<std::pair<std::string, std::string>> hist2D;
+    std::vector<std::string> hist2DNames;
+    std::vector<std::string> merge1D, merge2D;
+    std::vector<std::string> weights, weightNames;
+    int initDepth1D = 10;
+    int initDepth2D = 10;
+    
+    Parameters::initialize();
+
+    if (input) {
+        while (std::getline(input, line)) {
+            std::stringstream iss = stream_line(line, delimiters);
+            std::string token;
+            iss >> token;
+            if ((token == "path") || (token == "pathIn") || (token == "pathInput") || (token == "pathSim")) {
+                std::stringstream iss2(line);
+                iss2 >> token;
+                iss2 >> this->path;
+            }
+            else if ((token == "pathOut") || (token == "pathOutput")) {
+                std::stringstream iss2(line);
+                iss2 >> token;
+                iss2 >> path_output;
+            }
+            else if (token == "frames") {
+                int a;
+                while (iss >> a) {
+                    addFrame(a);
+                }
+            }
+            else if (token == "framesRange") {
+                int a, b;
+                iss >> a >> b;
+                setFrames(a, b);
+            }
+            else if (token == "singleFrames") {
+                int a;
+                while (iss >> a) {
+                    addSingleFrame(a);
+                }
+            }
+            else if (token == "singleFramesRange") {
+                int a, b;
+                iss >> a >> b;
+                setSingleFrames(a, b);
+            }
+            else if (token == "extractGlobal") {
+                iss >> token;
+                if ((token == "true") || (token == "1")) extractGlobal = true;
+            }
+            else if (token == "extractSingle") {
+                iss >> token;
+                if ((token == "true") || (token == "1")) extractSingle = true;
+            }
+            else if (token == "fieldnames") {
+                iss >> fieldnameX >> fieldnameY;
+                setFieldnames(fieldnameX, fieldnameY);
+            }
+            else if ((token == "statFunction") || (token == "stat")) {
+                std::string s;
+                while (iss >> s) {
+                    stats.push_back(s);
+                }
+            }
+            else if (token == "statName") {
+                std::string s;
+                while (iss >> s) {
+                    statNames.push_back(s);
+                }
+            }
+            else if ((token == "hist1Dfunction") || (token == "hist1D")) {
+                std::string s;
+                while (iss >> s) {
+                    hist1D.push_back(s);
+                }
+            }
+            else if (token == "hist1DName") {
+                std::string s;
+                while (iss >> s) {
+                    hist1DNames.push_back(s);
+                }
+            }
+            else if ((token == "hist2Dfunction") || (token == "hist2D")) {
+                std::string s1, s2;
+                while (iss >> s1 >> s2) {
+                    hist2D.push_back(std::pair<std::string, std::string>(s1, s2));
+                }
+            }
+            else if (token == "hist2DName") {
+                std::string s;
+                while (iss >> s) {
+                    hist2DNames.push_back(s);
+                }
+            }
+            else if ((token == "depth1D") || (token == "initialDepth1D") || (token == "initDepth1D")) {
+                int d;
+                while (iss >> d) {
+                    initDepth1D = d;
+                }
+            }
+            else if ((token == "depth2D") || (token == "initialDepth2D") || (token == "initDepth2D")) {
+                int d;
+                while (iss >> d) {
+                    initDepth2D = d;
+                }
+            }
+            else if (token == "mergeFraction1D") {
+                std::string s;
+                while (iss >> s) {
+                    merge1D.push_back(s);
+                }
+            }
+            else if (token == "mergeFraction2D") {
+                std::string s;
+                while (iss >> s) {
+                    merge2D.push_back(s);
+                }
+            }
+            else if (token == "weight") {
+                std::string s;
+                while (iss >> s) {
+                    weights.push_back(s);
+                }
+            }
+            else if (token == "weightName") {
+                std::string s;
+                while (iss >> s) {
+                    weightNames.push_back(s);
+                }
+            }
+            else if (token == "saveTree") {
+                std::string s;
+                iss >> s;
+                if ((s == "true") || (s == "1") || (s == "yes")) saveTree = true;
+                else saveTree = false;
+            }
+            else if (token == "saveCDF") {
+                std::string s;
+                iss >> s;
+                if ((s == "true") || (s == "1") || (s == "yes")) saveCDF = true;
+                else saveCDF = false;
+            }
+            else if (token == "saveBins") {
+                std::string s;
+                iss >> s;
+                if ((s == "true") || (s == "1") || (s == "yes")) saveBins = true;
+                else saveBins = false;
+            }
+        }
+        if (stats.size() == statNames.size()) {
+            for (int i = 0; i < stats.size(); i++) {
+                auto func = parse_function(stats[i]);
+                addStat(func, statNames[i]);
+            }
+        }
+        else if (statNames.size() == 0) {
+            for (int i = 0; i < stats.size(); i++) {
+                auto func = parse_function(stats[i]);
+                addStat(func, stats[i]);
+            }
+        }
+        else {
+            std::cout << "Error: mismatch in stat functions and stat names count." << std::endl;
+        }
+        if (hist1D.size() == hist1DNames.size()) {
+            for (int i = 0; i < hist1D.size(); i++) {
+                auto func = parse_function(hist1D[i]);
+                add1Dtransform(func, hist1DNames[i], initDepth1D);
+            }
+        }
+        else if (hist1DNames.size() == 0) {
+            for (int i = 0; i < hist1D.size(); i++) {
+                auto func = parse_function(hist1D[i]);
+                add1Dtransform(func, hist1D[i], initDepth1D);
+            }
+        }
+        else {
+            std::cout << "Error: mismatch in 1D histogram functions (" << hist1D.size() << ") and names (" << hist1DNames.size() << ") count." << std::endl;
+        }
+        if (hist2D.size() == hist2DNames.size()) {
+            for (int i = 0; i < hist2D.size(); i++) {
+                auto funcX = parse_function(hist2D[i].first);
+                auto funcY = parse_function(hist2D[i].second);
+                add2Dtransform(funcX, funcY, hist2DNames[i], initDepth2D);
+            }
+        }
+        else if (hist2DNames.size() == 0) {
+            for (int i = 0; i < hist2D.size(); i++) {
+                auto funcX = parse_function(hist2D[i].first);
+                auto funcY = parse_function(hist2D[i].second);
+                add2Dtransform(funcX, funcY, hist2D[i].first + "_" + hist2D[i].second, initDepth2D);
+            }
+        }
+        else {
+            std::cout << "Error: mismatch in 2D histogram functions (" << hist2D.size() << ") and names (" << hist2DNames.size() << ") count." << std::endl;
+        }
+        if (weights.size() == weightNames.size()) {
+            for (int i = 0; i < weights.size(); i++) {
+                auto func = parse_function(weights[i]);
+                addWeight(func, weightNames[i]);
+            }
+        }
+        if (weightNames.size() == 0) {
+            for (int i = 0; i < weights.size(); i++) {
+                auto func = parse_function(weights[i]);
+                addWeight(func, weights[i]);
+            }
+        }
+        else {
+            std::cout << "Error: mismatch in weight functions (" << weights.size() << ") and names (" << weightNames.size() << ") count." << std::endl;
+        }
+        setMergeFractions(merge1D, merge2D);
+    }
+    else std::cout << path << " not found!" << std::endl;
+}
+
 void Parameters::initialize() {
     frames.resize(0);
+    single_frames.resize(0);
+    stat_fun.resize(0);
+    stat_name.resize(0);
 	transform_1D.resize(0); name_transform_1D.resize(0);
 	transform_2D.resize(0); name_transform_2D.resize(0);
 	weight.resize(0); postfix_weight.resize(0);
@@ -38,6 +657,9 @@ void Parameters::initialize() {
     saveBins = true;
     saveCDF = true;
     saveTree = true;
+    saveIndividualFrames = true;
+    extractGlobal = false;
+    extractSingle = false;
 }
 
 void Parameters::setFieldnames(std::string fname_x, std::string fname_y) {
@@ -49,6 +671,10 @@ void Parameters::addFrame(int f) {
     frames.push_back(f);
 }
 
+void Parameters::addSingleFrame(int f) {
+    single_frames.push_back(f);
+}
+
 void Parameters::setFrames(int start, int end) {
     frames.resize(0);
     if (start <= end) {
@@ -56,6 +682,20 @@ void Parameters::setFrames(int start, int end) {
             frames.push_back(f);
         }
     }
+}
+
+void Parameters::setSingleFrames(int start, int end) {
+    single_frames.resize(0);
+    if (start <= end) {
+        for (int f = start; f <= end; f++) {
+            single_frames.push_back(f);
+        }
+    }
+}
+
+void Parameters::addStat(std::function<double(double, double)> function, std::string name) {
+    stat_fun.push_back(function);
+    stat_name.push_back(name);
 }
 
 void Parameters::add1Dtransform(std::function<double(double, double)> function, std::string name, int initial_depth) {
@@ -2177,6 +2817,8 @@ void Octree::add_point(double x, double y, double z, double weight) {
             }
         }
         nodes[candidate_index].weight += weight;
+        //nodes[candidate_index].partial_sum.insert(weight);
+        //handle_set(nodes[candidate_index].weight, nodes[candidate_index].partial_sum);
     }
 }
 
@@ -2275,11 +2917,11 @@ void BinaryTree::load_points(const std::vector<double> &x, const std::vector<dou
     for (int i = 0; i < x.size(); i++) add_point(fun(x[i], y[i]), fun_wt(x[i], y[i]));
 }
 
-void BinaryTree::load_points(double x[], double y[], const std::function<double(double, double)> &fun, const std::function<double(double, double)> &fun_wt, int size) {
+void BinaryTree::load_points(long double x[], long double y[], const std::function<double(double, double)> &fun, const std::function<double(double, double)> &fun_wt, int size) {
     for (int i = 0; i < size; i++) add_point(fun(x[i], y[i]), fun_wt(x[i], y[i]));
 }
 
-void Quadtree::load_points(double x[], double y[], const std::function<double(double, double)> &fun_x, const std::function<double(double, double)> &fun_y, const std::function<double(double, double)> &fun_wt, int size) {
+void Quadtree::load_points(long double x[], long double y[], const std::function<double(double, double)> &fun_x, const std::function<double(double, double)> &fun_y, const std::function<double(double, double)> &fun_wt, int size) {
     for (int i = 0; i < size; i++) add_point(fun_x(x[i], y[i]), fun_y(x[i], y[i]), fun_wt(x[i], y[i]));
 }
 
@@ -2978,6 +3620,18 @@ void Octree::weigh(int node_index, double x_scaled, double y_scaled, double z_sc
     }
 }
 
+void BinaryTree::write_node(std::ofstream& output, int node_index) {
+    if (nodes[node_index].child[0] < 0) {
+        output << node_index << " " << nodes[node_index].weight << std::endl;
+    }
+    else {
+        output << node_index;
+        for (int i = 0; i < 2; i++) output << " " << nodes[node_index].child[i];
+        output << std::endl;
+        for (int i = 0; i < 2; i++) write_node(output, nodes[node_index].child[i]);
+    }
+}
+
 void BinaryTree::write_node(std::ofstream& output, int node_index, const double& total_weight) {
     if (nodes[node_index].child[0] < 0) {
         output << node_index << " " << nodes[node_index].weight / total_weight << std::endl;
@@ -2990,6 +3644,18 @@ void BinaryTree::write_node(std::ofstream& output, int node_index, const double&
     }
 }
 
+void Quadtree::write_node(std::ofstream& output, int node_index) {
+    if (nodes[node_index].child[0] < 0) {
+        output << node_index << " " << nodes[node_index].weight << std::endl;
+    }
+    else {
+        output << node_index;
+        for (int i = 0; i < children_per_node; i++) output << " " << nodes[node_index].child[i];
+        output << std::endl;
+        for (int i = 0; i < children_per_node; i++) write_node(output, nodes[node_index].child[i]);
+    }
+}
+
 void Quadtree::write_node(std::ofstream& output, int node_index, const double& total_weight) {
     if (nodes[node_index].child[0] < 0) {
         output << node_index << " " << nodes[node_index].weight / total_weight << std::endl;
@@ -2999,6 +3665,18 @@ void Quadtree::write_node(std::ofstream& output, int node_index, const double& t
         for (int i = 0; i < children_per_node; i++) output << " " << nodes[node_index].child[i];
         output << std::endl;
         for (int i = 0; i < children_per_node; i++) write_node(output, nodes[node_index].child[i], total_weight);
+    }
+}
+
+void Octree::write_node(std::ofstream& output, int node_index) {
+    if (nodes[node_index].child[0] < 0) {
+        output << node_index << " " << nodes[node_index].weight << std::endl;
+    }
+    else {
+        output << node_index;
+        for (int i = 0; i < children_per_node; i++) output << " " << nodes[node_index].child[i];
+        output << std::endl;
+        for (int i = 0; i < children_per_node; i++) write_node(output, nodes[node_index].child[i]);
     }
 }
 
@@ -3034,6 +3712,7 @@ void BinaryTree::save_structure(std::string path, std::string prefix, std::strin
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the bintree to the " << filename << " ...";
+        output << std::setprecision(24);
         output << xmin << " " << xmax << " " << std::endl; // bounds
         output << nodes.size() << std::endl; // total number of nodes
         write_node(output, 0, total_weight);
@@ -3043,11 +3722,17 @@ void BinaryTree::save_structure(std::string path, std::string prefix, std::strin
 }
 
 void BinaryTree::save_structure(std::string path, std::string filename) {
+    save_structure(path, filename, false);
+}
+
+void BinaryTree::save_structure(std::string path, std::string filename, bool normalize) {
     while (path.back() == '/') path.pop_back();
     std::ofstream output(path + "/" + filename);
-    double total_weight = count_total();
+    double total_weight = 1;
+    if (normalize) total_weight = count_total();
     if (output) {
         std::cout << "Writing the bintree to the " << filename << " ...";
+        output << std::setprecision(18);
         output << xmin << " " << xmax << " " << std::endl; // bounds
         output << nodes.size() << std::endl; // total number of nodes
         write_node(output, 0, total_weight);
@@ -3056,25 +3741,18 @@ void BinaryTree::save_structure(std::string path, std::string filename) {
     std::cout << " done!" << std::endl;
 }
 
-void Quadtree::save_structure(std::string path, std::string prefix, std::string filename) {
-    std::ofstream output(path + prefix + "_" + filename);
-    double total_weight = count_total();
-    if (output) {
-        std::cout << "Writing the quadtree to the " << filename << " ...";
-        output << xmin << " " << ymin << " " << xmax << " " << ymax << std::endl; // bounds
-        output << nodes.size() << std::endl; // total number of nodes
-        write_node(output, 0, total_weight);
-    }
-    output.close();
-    std::cout << " done!" << std::endl;
+void Quadtree::save_structure(std::string path, std::string filename) {
+    save_structure(path, filename, false);
 }
 
-void Quadtree::save_structure(std::string path, std::string filename) {
+void Quadtree::save_structure(std::string path, std::string filename, bool normalize) {
     while (path.back() == '/') path.pop_back();
     std::ofstream output(path + "/" + filename);
-    double total_weight = count_total();
+    double total_weight = 1;
+    if (normalize) total_weight = count_total();
     if (output) {
         std::cout << "Writing the quadtree to the " << filename << " ...";
+        output << std::setprecision(18);
         output << xmin << " " << ymin << " " << xmax << " " << ymax << std::endl; // bounds
         output << nodes.size() << std::endl; // total number of nodes
         write_node(output, 0, total_weight);
@@ -3088,6 +3766,7 @@ void Octree::save_structure(std::string path, std::string prefix, std::string fi
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the quadtree to the " << filename << " ...";
+        output << std::setprecision(18);
         output << xmin << " " << ymin << " " << zmin << " " << xmax << " " << ymax << " " << zmax << std::endl; // bounds
         output << nodes.size() << std::endl; // total number of nodes
         write_node(output, 0, total_weight);
@@ -3102,6 +3781,7 @@ void Octree::save_structure(std::string path, std::string filename) {
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the quadtree to the " << filename << " ...";
+        output << std::setprecision(18);
         output << xmin << " " << ymin << " " << zmin << " " << xmax << " " << ymax << " " << zmax << std::endl; // bounds
         output << nodes.size() << std::endl; // total number of nodes
         write_node(output, 0, total_weight);
@@ -3178,6 +3858,7 @@ void BinaryTree::save_leaves(std::string path, std::string prefix, std::string f
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the tiles to file " << filename << " ...";
+        output << std::setprecision(18);
         copy.write_leaf(output, 0, 0, 1, total_weight);
     }
     output.close();
@@ -3191,6 +3872,7 @@ void BinaryTree::save_leaves(std::string path, std::string filename) {
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the tiles to file " << filename << " ...";
+        output << std::setprecision(18);
         copy.write_leaf(output, 0, 0, 1, total_weight);
     }
     output.close();
@@ -3203,6 +3885,7 @@ void Quadtree::save_leaves(std::string path, std::string prefix, std::string fil
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the tiles to file " << filename << " ...";
+        output << std::setprecision(18);
         copy.write_leaf(output, 0, 0, 0, 1, total_weight);
     }
     output.close();
@@ -3216,6 +3899,7 @@ void Quadtree::save_leaves(std::string path, std::string filename) {
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the tiles to file " << filename << " ...";
+        output << std::setprecision(18);
         copy.write_leaf(output, 0, 0, 0, 1, total_weight);
     }
     output.close();
@@ -3228,6 +3912,7 @@ void Octree::save_leaves(std::string path, std::string prefix, std::string filen
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the tiles to file " << filename << " ...";
+        output << std::setprecision(18);
         copy.write_leaf(output, 0, 0, 0, 0, 1, total_weight);
     }
     output.close();
@@ -3241,6 +3926,7 @@ void Octree::save_leaves(std::string path, std::string filename) {
     double total_weight = count_total();
     if (output) {
         std::cout << "Writing the tiles to file " << filename << " ...";
+        output << std::setprecision(18);
         copy.write_leaf(output, 0, 0, 0, 0, 1, total_weight);
     }
     output.close();
@@ -3954,6 +4640,35 @@ void BinaryTree::load_tree(std::string path, std::string prefix, std::string fil
     fix_depth();
 }
 
+void BinaryTree::load_tree(std::string path, std::string filename) {
+    std::string scale = "lin";
+    std::fstream input(path + "/" + filename);
+    std::string line;
+    std::getline(input, line);
+    std::stringstream iss(line);
+    iss >> xmin >> xmax;
+    std::getline(input, line);
+    nodes.resize(std::stoi(line));
+    while (std::getline(input, line)) {
+        std::stringstream iss(line);
+        double a, b, c;
+        iss >> a >> b;
+        if (iss.rdbuf()->in_avail()) {
+            iss >> c;
+            nodes[(int)a].child[0] = b;
+            nodes[(int)b].parent = a;
+
+            nodes[(int)a].child[1] = c;
+            nodes[(int)c].parent = a;
+        }
+        else {
+            nodes[(int)a].weight = b;
+        }
+    }
+    set_scales(scale);
+    fix_depth();
+}
+
 BinaryTree load_tree(std::string path, std::string prefix, std::string filename, std::string scale) {
     BinaryTree res;
     res.load_tree(path, prefix, filename, scale);
@@ -3963,6 +4678,42 @@ BinaryTree load_tree(std::string path, std::string prefix, std::string filename,
 void Quadtree::load_tree(std::string path, std::string prefix, std::string filename, std::string scale_X, std::string scale_Y) {
     std::fstream input(path + prefix + "_" + filename);
     std::string line;
+    std::getline(input, line);
+    std::stringstream iss(line);
+    iss >> xmin >> ymin >> xmax >> ymax;
+    std::getline(input, line);
+    nodes.resize(std::stoi(line));
+    while (std::getline(input, line)) {
+        std::stringstream iss(line);
+        double a, b, c, d, e;
+        iss >> a >> b;
+        if (iss.rdbuf()->in_avail()) {
+            iss >> c >> d >> e;
+            nodes[(int)a].child[0] = b;
+            nodes[(int)b].parent = a;
+
+            nodes[(int)a].child[1] = c;
+            nodes[(int)c].parent = a;
+
+            nodes[(int)a].child[2] = d;
+            nodes[(int)d].parent = a;
+
+            nodes[(int)a].child[3] = e;
+            nodes[(int)e].parent = a;
+        }
+        else {
+            nodes[(int)a].weight = b;
+        }
+    }
+    set_scales(scale_X, scale_Y);
+    fix_depth();
+}
+
+void Quadtree::load_tree(std::string path, std::string filename) {
+    std::fstream input(path + "/" + filename);
+    std::string line;
+    std::string scale_X = "lin";
+    std::string scale_Y = "lin";
     std::getline(input, line);
     std::stringstream iss(line);
     iss >> xmin >> ymin >> xmax >> ymax;

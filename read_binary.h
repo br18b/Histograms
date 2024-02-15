@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
+#include <set>
 #include "string_pad.h"
 #include "H5Cpp.h"
 
@@ -18,8 +19,11 @@ int read_from_binary(std::string path, std::string prefix, std::string name, std
 int read_from_binary(std::string path, std::string name, std::vector<double>& x);
 
 int getSize(std::string filename, std::string groupname);
-int read_from_hdf5(std::string filename, std::string groupname, std::string fieldname, double res[], int size);
+int read_from_hdf5(std::string filename, std::string groupname, std::string fieldname, long double res[], int size);
 int read_from_hdf5(std::string filename, std::string group, std::string fieldname, std::vector<double> &res);
 std::vector<double> read_from_hdf5(std::string filename, std::string group, std::string fieldname);
+
+void handle_set(long double &res, std::multiset<long double> &set, bool override);
+void handle_set(long double &res, std::multiset<long double> &set);
 
 #endif
