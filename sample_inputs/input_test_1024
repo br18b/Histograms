@@ -1,0 +1,30 @@
+path			/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0.5/mach8
+pathOut			/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0.5/mach8/stats
+
+framesRange		20 90
+singleFramesRange	1 90
+
+extractGlobal		true
+extractSingle		true
+
+fieldnames		rho, absv
+
+#stat			sv2 sv4 sv6 s2v2 s2v4 s2v6 s3v2 s3v4 s3v6 logrho logrho2 rho rho2 absv absv2 Helmholtz kinetic Helmholtz2 kinetic2
+
+hist1Dfunction		logrho, absv, Helmholtz_shiftlog, kinetic_log
+hist1DName		logrho, absv, Helmholtz, kinetic
+
+hist2Dfunction		(logX, idY), (Helmholtz_shiftlog, kinetic_log)
+hist2DName		logrho_absv, Helmholtz_kinetic
+
+depth1D			11
+depth2D			11
+
+mergeFraction1D		1e-4, 1e-3, 1e-2
+mergeFraction2D		1e-6, 1e-5, 1e-4, 1e-3
+
+weight			V, M, E
+
+saveTree		true
+saveCDF			true
+saveBins		true

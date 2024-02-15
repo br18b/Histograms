@@ -1,0 +1,12 @@
+path			/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0.0/mach1
+pathOut			/scratch/06736/rabatinb/projects/1024_Mach_grid/xi_0.0/mach1/stats
+
+framesRange		20 90
+singleFramesRange	20 90
+
+extractGlobal		true
+extractSingle		false
+
+fieldnames		rho, absv
+
+stat			sv
